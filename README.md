@@ -75,6 +75,18 @@ Environment variables:
 Refreshing data = run the ingest scripts locally, `npm run index:build`, `npm run index:upload`,
 then redeploy (push to `main` or `vercel deploy --prod`).
 
+## Known limitations
+
+- **The Met is only partially indexed** (~1.6k of ~248k public-domain objects). The Met's API sits
+  behind Imperva, which blocks the crawling IP after a few hundred requests; the crawl is resumable
+  (`npm run ingest -- met`) but slow. Highlights are ingested first.
+- **AIC's image host blocks Vercel's IPs**, so `/api/download` answers 302 for AIC files and the
+  browser fetches the original directly (AIC allows CORS); the UI handles this transparently.
+- Rijksmuseum, Smithsonian and AIC are capped (70k / 100k / all PD) to keep the index under Vercel's
+  250 MB function limit; the Rijksmuseum sample is a random public-domain subset of ~600k eligible works.
+- Rijksmuseum metadata is Dutch; common terms are translated for search but titles stay Dutch.
+- “Similar” compares only the results already loaded (client-side image signatures), not the whole index.
+
 ## Boards, selection, downloads
 
 Boards are stored in the browser (localStorage) behind a small `BoardStore` interface
