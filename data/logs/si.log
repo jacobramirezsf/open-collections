@@ -1,0 +1,80 @@
+
+=== Smithsonian (si) ===
+si/chndm: shard 32/256, 6755 records, 1 3d
+si/chndm: shard 64/256, 13602 records, 1 3d
+si/chndm: shard 96/256, 20419 records, 1 3d
+si/chndm: shard 128/256, 27245 records, 1 3d
+si/chndm: shard 160/256, 34037 records, 2 3d
+si/chndm: shard 192/256, 40932 records, 3 3d
+si/chndm: shard 224/256, 47791 records, 6 3d
+si/chndm: shard 256/256, 54626 records, 6 3d
+si/chndm: complete, 54626 records (6 3d)
+si/saam: shard 32/256, 1576 records, 1 3d
+si/saam: shard 64/256, 3229 records, 3 3d
+si/saam: shard 96/256, 4898 records, 4 3d
+si/saam: shard 128/256, 6519 records, 5 3d
+si/saam: shard 160/256, 8168 records, 5 3d
+si/saam: shard 192/256, 9750 records, 5 3d
+si/saam: shard 224/256, 11364 records, 7 3d
+si/saam: shard 256/256, 13003 records, 9 3d
+si/saam: complete, 13003 records (9 3d)
+si/npm: shard 32/256, 1091 records, 0 3d
+si/npm: shard 64/256, 2170 records, 0 3d
+si/npm: shard 96/256, 3289 records, 0 3d
+si/npm: shard 128/256, 4424 records, 0 3d
+si/npm: shard 160/256, 5524 records, 0 3d
+si/npm: shard 192/256, 6574 records, 0 3d
+si/npm: shard 224/256, 7678 records, 0 3d
+si/npm: shard 256/256, 8787 records, 1 3d
+si/npm: complete, 8787 records (1 3d)
+si/fsg: shard 32/256, 588 records, 0 3d
+si/fsg: shard 64/256, 1185 records, 4 3d
+si/fsg: shard 96/256, 1788 records, 7 3d
+si/fsg: shard 128/256, 2392 records, 7 3d
+si/fsg: shard 160/256, 2971 records, 8 3d
+si/fsg: shard 192/256, 3559 records, 10 3d
+si/fsg: shard 224/256, 4134 records, 11 3d
+si/fsg: shard 256/256, 4711 records, 11 3d
+si/fsg: complete, 4711 records (11 3d)
+si/nasm: shard 32/256, 122 records, 0 3d
+si/nasm: shard 64/256, 240 records, 1 3d
+si/nasm: shard 96/256, 350 records, 1 3d
+si/nasm: shard 128/256, 508 records, 1 3d
+si/nasm: shard 160/256, 638 records, 3 3d
+si/nasm: shard 192/256, 744 records, 3 3d
+si/nasm: shard 224/256, 863 records, 4 3d
+si/nasm: shard 256/256, 996 records, 4 3d
+si/nasm: complete, 996 records (4 3d)
+si/hmsg: shard 32/256, 44 records, 0 3d
+si/hmsg: shard 64/256, 103 records, 0 3d
+si/hmsg: shard 96/256, 165 records, 0 3d
+si/hmsg: shard 128/256, 225 records, 0 3d
+si/hmsg: shard 160/256, 281 records, 0 3d
+si/hmsg: shard 192/256, 342 records, 0 3d
+si/hmsg: shard 224/256, 403 records, 0 3d
+si/hmsg: shard 256/256, 449 records, 0 3d
+si/hmsg: complete, 449 records (0 3d)
+si/nmafa: shard 32/256, 15 records, 0 3d
+si/nmafa: shard 64/256, 34 records, 0 3d
+si/nmafa: shard 96/256, 46 records, 0 3d
+si/nmafa: shard 128/256, 59 records, 0 3d
+si/nmafa: shard 160/256, 70 records, 0 3d
+si/nmafa: shard 192/256, 82 records, 2 3d
+si/nmafa: shard 224/256, 97 records, 2 3d
+si/nmafa: shard 256/256, 111 records, 2 3d
+si/nmafa: complete, 111 records (2 3d)
+si/npg: shard 32/256, 1855 records, 4 3d
+si/npg: shard 64/256, 3723 records, 7 3d
+si/npg: shard 96/256, 5600 records, 7 3d
+si/npg: shard 128/256, 7395 records, 7 3d
+si/npg: shard 160/256, 9207 records, 8 3d
+si/npg: shard 192/256, 11001 records, 10 3d
+si/npg: shard 224/256, 12874 records, 10 3d
+si/npg: shard 256/256, 14674 records, 11 3d
+si/npg: complete, 14674 records (11 3d)
+!!! si failed: Error: HTTP 404 for https://smithsonian-open-access.s3-us-west-2.amazonaws.com/metadata/edan/ocio_dpo3d/index.txt
+    at getText (file:///Users/Jacob/Documents/Makery/projects/open-collections/scripts/ingest/lib/http.mjs:51:22)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Module.ingest (file:///Users/Jacob/Documents/Makery/projects/open-collections/scripts/ingest/sources/si.mjs:148:20)
+    at async file:///Users/Jacob/Documents/Makery/projects/open-collections/scripts/ingest/run.mjs:43:5
+--- si: 97357 records kept in staging

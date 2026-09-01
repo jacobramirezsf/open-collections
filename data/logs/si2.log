@@ -1,0 +1,6 @@
+
+=== Smithsonian (si) ===
+si/nmah: shard 32/256, 1494 records, 5 3d
+si/nmah: shard 64/256, 3030 records, 8 3d
+si/nmah: shard 96/256, 4580 records, 9 3d
+si/nmah: shard 128/256, 6160 records, 16 3d

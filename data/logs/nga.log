@@ -1,0 +1,8 @@
+
+=== National Gallery of Art (nga) ===
+nga: reading published_images.csv
+nga: 63419 objects with open-access images
+nga: reading objects_terms.csv
+nga: reading objects.csv
+nga: ingested 63389
+--- nga: 63389 records in staging (20s)

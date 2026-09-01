@@ -1,0 +1,14 @@
+node_modules
+dist
+.vercel
+.env
+.env.local
+data/*.sqlite
+data/*.sqlite-journal
+data/*.sqlite-wal
+data/*.sqlite-shm
+data/raw
+data/staging
+data/*.ndjson
+data/*.gz
+.DS_Store
