@@ -25,5 +25,5 @@ export default handler(async (req: Request) => {
   }
   if (!url) return error('no file', 404)
   const name = downloadName(item, url, ext)
-  return proxyFetch(url, { download: name, range: req.headers.get('range') })
+  return proxyFetch(url, { download: name, range: req.headers.get('range'), redirectOnBlock: true })
 })

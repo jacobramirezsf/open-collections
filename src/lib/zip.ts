@@ -33,10 +33,16 @@ export async function zipItems(items: Item[], onProgress: (p: ZipProgress) => vo
       if (signal?.aborted) return
       const fileIdx = item.contentType === '3d' ? 0 : 'image'
       try {
-        const res = await fetch(downloadUrl(item, fileIdx), { signal })
+        let res = await fetch(downloadUrl(item, fileIdx), { signal, redirect: 'manual' })
+        let name = filenameFrom(res, `${item.source}-${slug(item.id.split(':').pop() || '')}-${slug(item.title)}.${extOf(item)}`)
+        if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400) || res.status === 502) {
+          // proxy was blocked upstream → fetch the original directly (hosts we index allow CORS)
+          const direct = fileIdx === 'image' ? item.originalImageUrl || item.imageUrl : item.files[fileIdx]?.url
+          if (!direct) throw new Error('no url')
+          res = await fetch(direct, { signal, mode: 'cors' })
+        }
         if (!res.ok) throw new Error(String(res.status))
         const buf = new Uint8Array(await res.arrayBuffer())
-        let name = filenameFrom(res, `${item.source}-${item.id.split(':').pop()}.bin`)
         let n = 1
         while (used.has(name)) name = name.replace(/(\.[a-z0-9]+)$/i, `-${++n}$1`)
         used.add(name)
@@ -60,6 +66,15 @@ export async function zipItems(items: Item[], onProgress: (p: ZipProgress) => vo
   return new Blob(chunks as BlobPart[], { type: 'application/zip' })
 }
 
+function slug(s: string) {
+  return s.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50) || 'untitled'
+}
+function extOf(item: Item) {
+  const u = item.originalImageUrl || item.imageUrl || ''
+  const m = u.split(/[?#]/)[0].match(/\.([a-z0-9]{2,5})$/i)
+  return m ? m[1].toLowerCase() : 'jpg'
+}
+
 export function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -69,6 +84,20 @@ export function saveBlob(blob: Blob, filename: string) {
   a.click()
   a.remove()
   setTimeout(() => URL.revokeObjectURL(url), 60000)
+}
+
+// Downloads one file through the proxy, falling back to a direct CORS fetch if the proxy was blocked
+// upstream, and saves it with a proper filename. Used for single-image downloads in the viewer.
+export async function downloadItem(item: Item, fileIdx: number | 'image' = 'image'): Promise<void> {
+  let res = await fetch(downloadUrl(item, fileIdx), { redirect: 'manual' })
+  let name = filenameFrom(res, `${item.source}-${slug(item.id.split(':').pop() || '')}-${slug(item.title)}.${extOf(item)}`)
+  if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400) || res.status === 502) {
+    const direct = fileIdx === 'image' ? item.originalImageUrl || item.imageUrl : item.files[fileIdx]?.url
+    if (!direct) throw new Error('No file available')
+    res = await fetch(direct, { mode: 'cors' })
+  }
+  if (!res.ok) throw new Error(`Download failed (${res.status})`)
+  saveBlob(await res.blob(), name)
 }
 
 export function triggerDownload(url: string) {

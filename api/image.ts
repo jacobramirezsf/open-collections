@@ -12,5 +12,5 @@ export default handler(async (req: Request) => {
   const size = p.get('size') || 'thumb'
   const url = size === 'orig' ? item.originalImageUrl : size === 'view' ? item.imageUrl : item.thumbnailUrl
   if (!url) return error('no image', 404)
-  return proxyFetch(url, { timeoutMs: 20000 })
+  return proxyFetch(url, { timeoutMs: 20000, redirectOnBlock: true })
 })

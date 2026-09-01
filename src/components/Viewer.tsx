@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Item } from '../../shared/types'
 import { downloadUrl, proxyImageUrl } from '../lib/api'
-import { triggerDownload } from '../lib/zip'
+import { downloadItem, triggerDownload } from '../lib/zip'
 import { ModelIcon } from './Grid'
 
 interface Props {
@@ -29,6 +29,7 @@ export default function Viewer({ items, index, onClose, onNav, onSave, onSimilar
   const [src, setSrc] = useState<string | null>(null)
   const [failed, setFailed] = useState(0) // 0 = viewer image, 1 = thumb, 2 = proxy, 3 = give up
   const [bigLoaded, setBigLoaded] = useState(false)
+  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     setFailed(0)
@@ -104,7 +105,20 @@ export default function Viewer({ items, index, onClose, onNav, onSave, onSimilar
             <span className={'rights ' + rightsClass(item)} title={item.licenseUrl || undefined}>{item.rightsLabel}</span>
           </div>
           <div className="actions">
-            {!is3d && <button className="btn primary" onClick={() => triggerDownload(downloadUrl(item, 'image'))}>Download</button>}
+            {!is3d && (
+              <button
+                className="btn primary"
+                disabled={busy}
+                onClick={() => {
+                  setBusy(true)
+                  downloadItem(item, 'image')
+                    .catch((e) => alert((e as Error).message))
+                    .finally(() => setBusy(false))
+                }}
+              >
+                {busy ? 'Downloading…' : 'Download'}
+              </button>
+            )}
             <button className="btn" onClick={(e) => onSave(item, e.currentTarget)}>{isSaved(item.id) ? 'Saved ✓' : 'Save to board'}</button>
             <a className="btn" href={item.sourceUrl} target="_blank" rel="noopener noreferrer">Original record ↗</a>
             {!is3d && <button className="btn" onClick={() => onSimilar(item)}>Similar</button>}

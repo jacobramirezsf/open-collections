@@ -36,7 +36,7 @@ export function itemUrls(item: Item): string[] {
   return [item.thumbnailUrl, item.imageUrl, item.originalImageUrl, ...item.files.map((f) => f.url)].filter(Boolean) as string[]
 }
 
-export async function proxyFetch(url: string, opts: { download?: string | null; cache?: string; timeoutMs?: number; range?: string | null } = {}): Promise<Response> {
+export async function proxyFetch(url: string, opts: { download?: string | null; cache?: string; timeoutMs?: number; range?: string | null; redirectOnBlock?: boolean } = {}): Promise<Response> {
   const ctrl = new AbortController()
   const t = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 50000)
   let upstream: Response
@@ -45,8 +45,9 @@ export async function proxyFetch(url: string, opts: { download?: string | null; 
       signal: ctrl.signal,
       redirect: 'follow',
       headers: {
-        'user-agent': 'Mozilla/5.0 (compatible; open-collections/1.0; +https://open-collections.vercel.app)',
-        accept: '*/*',
+        'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
+        accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+        'accept-language': 'en-US,en;q=0.9',
         ...(opts.range ? { range: opts.range } : {}),
       },
     })
@@ -59,6 +60,11 @@ export async function proxyFetch(url: string, opts: { download?: string | null; 
   }
   if (!upstream.ok && upstream.status !== 206) {
     clearTimeout(t)
+    // Some image hosts (e.g. AIC's Cloudflare) refuse datacenter IPs. Hand the browser the original URL
+    // instead of failing: it can fetch it directly (these hosts allow CORS / hotlinking from browsers).
+    if (opts.redirectOnBlock && (upstream.status === 403 || upstream.status === 429 || upstream.status === 503)) {
+      return new Response(null, { status: 302, headers: { location: url, 'cache-control': 'no-store', 'x-oc-fallback': 'direct' } })
+    }
     return new Response(JSON.stringify({ error: `Upstream returned ${upstream.status}` }), {
       status: upstream.status === 404 ? 404 : 502,
       headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
