@@ -1,0 +1,9 @@
+
+  VITE v7.3.6  ready in 117 ms
+
+  ➜  Local:   http://localhost:5180/
+  ➜  Network: use --host to expose
+9:21:04 PM [vite] (client) hmr update /src/styles.css
+9:21:04 PM [vite] (client) hmr update /src/components/Viewer.tsx
+9:21:04 PM [vite] (client) hmr update /src/styles.css
+9:21:18 PM [vite] (client) page reload index.html

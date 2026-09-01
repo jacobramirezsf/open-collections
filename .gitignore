@@ -12,3 +12,4 @@ data/staging
 data/*.ndjson
 data/*.gz
 .DS_Store
+.env*

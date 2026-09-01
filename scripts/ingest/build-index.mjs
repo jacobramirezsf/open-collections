@@ -8,6 +8,14 @@ import { ROOT, STAGING_DIR } from './lib/store.mjs'
 import { compactImages, defaultRecordUrl, defaultRights } from '../../shared/urls.ts'
 
 const OUT = path.join(ROOT, 'data/index.sqlite')
+// Per-source caps keep the bundled index under Vercel's 250 MB function limit. Override with
+// CAPS="rijks=60000,si=100000". Capped sources keep highlights first, then a stable pseudo-random subset.
+const DEFAULT_CAPS = { rijks: 70000, si: 100000, met: 110000, aic: 60000, nga: 65000, cma: 45000 }
+const CAPS = { ...DEFAULT_CAPS }
+for (const kv of (process.env.CAPS || '').split(',').filter(Boolean)) {
+  const [k, v] = kv.split('=')
+  CAPS[k] = Number(v)
+}
 const TMP = OUT + '.building'
 const stagingFiles = fs.existsSync(STAGING_DIR) ? fs.readdirSync(STAGING_DIR).filter((f) => f.endsWith('.sqlite')) : []
 if (!stagingFiles.length) {
@@ -50,14 +58,16 @@ db.exec(`
   );
   CREATE VIRTUAL TABLE fts USING fts5(
     title, creator, object_type, medium, culture, place, text,
-    content='', tokenize='porter unicode61 remove_diacritics 2', detail='column'
+    content='', tokenize='porter unicode61 remove_diacritics 2', detail='full'
   );
 `)
 for (const f of stagingFiles) {
   const p = path.join(STAGING_DIR, f)
   db.exec(`ATTACH DATABASE '${p.replace(/'/g, "''")}' AS st`)
   const before = db.prepare('SELECT COUNT(*) c FROM items').get().c
-  const rows = db.prepare(`SELECT * FROM st.items WHERE title IS NOT NULL AND title != '' ORDER BY source_id`).all()
+  const srcKey = f.replace(/\.sqlite$/, '')
+  const cap = CAPS[srcKey] ?? 1e9
+  const rows = db.prepare(`SELECT * FROM st.items WHERE title IS NOT NULL AND title != '' ORDER BY boost DESC, ((rowid * 2654435761) % 1000003), source_id LIMIT ?`).all(cap)
   const ins = db.prepare(`INSERT OR IGNORE INTO items (id, source, source_id, img, title, creator, date_display, year_start, year_end, object_type, medium, culture, place,
       public_domain, rights_label, license_url, thumb_url, image_url, original_url, width, height, content_type, files, source_url, boost)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
@@ -79,7 +89,7 @@ for (const f of stagingFiles) {
       key ? null : r.thumb_url, key ? null : r.image_url, key ? null : r.original_url, r.width, r.height, r.content_type,
       files.length ? JSON.stringify(files) : null, recUrl === r.source_url ? null : r.source_url, r.boost,
     )
-    if (res.changes) insFts.run(res.lastInsertRowid, r.title, r.creator, r.object_type, r.medium, r.culture, r.place, trim(r.text, 400))
+    if (res.changes) insFts.run(res.lastInsertRowid, r.title, r.creator, r.object_type, r.medium, r.culture, r.place, trim(r.text, 260))
   }
   db.exec('COMMIT')
   db.exec('DETACH DATABASE st')

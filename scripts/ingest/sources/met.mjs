@@ -10,6 +10,13 @@ export const homepage = 'https://www.metmuseum.org/about-the-met/policies-and-do
 
 const CSV = 'https://media.githubusercontent.com/media/metmuseum/openaccess/master/MetObjects.csv'
 const API = 'https://collectionapi.metmuseum.org/public/collection/v1/objects/'
+// The Met sits behind Imperva, which intermittently 403s non-browser user agents.
+const MET_HEADERS = {
+  'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
+  accept: 'application/json, text/plain, */*',
+  'accept-language': 'en-US,en;q=0.9',
+  referer: 'https://metmuseum.github.io/',
+}
 
 // Fields we keep from the CSV, so the object API is only needed for image URLs.
 function ensureTables(db) {
@@ -146,7 +153,7 @@ export async function ingest(store, { limit = Infinity, log }) {
       await throttle()
       let obj
       try {
-        obj = await getJson(API + row.id, { retries: 2, timeoutMs: 20000 })
+        obj = await getJson(API + row.id, { retries: 2, timeoutMs: 20000, headers: MET_HEADERS })
         consecutiveErrors = 0
       } catch (e) {
         if (e.status === 404) {

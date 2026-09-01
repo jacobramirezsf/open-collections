@@ -22,6 +22,7 @@ const blob = await put('index/index.sqlite', fs.createReadStream(file), {
   addRandomSuffix: false,
   allowOverwrite: true,
   contentType: 'application/vnd.sqlite3',
+  multipart: true,
   token,
 })
 console.log(`uploaded: ${blob.url}`)

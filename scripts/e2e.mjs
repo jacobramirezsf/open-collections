@@ -1,0 +1,73 @@
+// Quick end-to-end smoke test with Playwright. Usage: node scripts/e2e.mjs [baseUrl]
+import { chromium } from 'playwright'
+const base = process.argv[2] || 'http://localhost:5180'
+const browser = await chromium.launch()
+const errors = []
+async function page(w = 1400, h = 900, mobile = false) {
+  const ctx = await browser.newContext({ viewport: { width: w, height: h }, isMobile: mobile, hasTouch: mobile })
+  const p = await ctx.newPage()
+  p.on('pageerror', (e) => errors.push('pageerror: ' + e.message))
+  p.on('console', (m) => m.type() === 'error' && errors.push('console: ' + m.text()))
+  return p
+}
+const p = await page()
+for (const q of ['chair', 'helmet', 'woman', 'rome', 'embroidery', 'bicycle', 'poster', 'tool']) {
+  const t0 = Date.now()
+  await p.goto(`${base}/?q=${encodeURIComponent(q)}`)
+  await p.waitForFunction(() => document.querySelectorAll('.card').length > 0 || document.querySelector('.empty'), null, { timeout: 30000 })
+  await p.waitForTimeout(2500)
+  const cards = await p.locator('.card').count()
+  const loaded = await p.locator('.card img.loaded').count()
+  const status = (await p.locator('.toolbar .status').innerText()).replace(/\s+/g, ' ')
+  console.log(`${q.padEnd(11)} cards=${cards} loaded=${loaded} ${Date.now() - t0}ms  "${status}"`)
+}
+await p.goto(`${base}/?q=chair`)
+await p.waitForSelector('.card img.loaded')
+await p.waitForTimeout(1500)
+await p.screenshot({ path: 'data/shots/chair.png' })
+// open viewer
+await p.locator('.card').first().click()
+await p.waitForSelector('.viewer h2')
+await p.waitForTimeout(1200)
+console.log('viewer title:', await p.locator('.viewer h2').innerText())
+await p.screenshot({ path: 'data/shots/viewer.png' })
+await p.keyboard.press('ArrowRight')
+await p.waitForTimeout(300)
+await p.keyboard.press('Escape')
+// select mode + batch bar
+await p.getByRole('button', { name: 'Select', exact: true }).click()
+const cards = p.locator('.card')
+for (let i = 0; i < 4; i++) await cards.nth(i).click()
+await p.waitForSelector('.batchbar')
+console.log('batch:', (await p.locator('.batchbar b').innerText()))
+await p.locator('.batchbar').getByRole('button', { name: 'Save to board' }).click()
+await p.locator('.pop input').fill('chairs')
+await p.locator('.pop form button').click()
+await p.waitForTimeout(500)
+await p.getByRole('button', { name: /^Boards/ }).click()
+await p.waitForSelector('.boardrow')
+console.log('board row:', (await p.locator('.boardrow .name').innerText()).replace(/\s+/g, ' '))
+await p.locator('.boardrow').first().click()
+await p.waitForTimeout(800)
+console.log('board view cards:', await p.locator('.card').count())
+await p.screenshot({ path: 'data/shots/board.png' })
+// 3D
+await p.goto(`${base}/?q=helmet&content=3d`)
+await p.waitForFunction(() => document.querySelectorAll('.card').length > 0 || document.querySelector('.empty'), null, { timeout: 30000 })
+await p.waitForTimeout(1500)
+console.log('3d helmet cards:', await p.locator('.card').count())
+await p.locator('.card').first().click()
+await p.waitForSelector('.viewer h2')
+console.log('3d viewer:', await p.locator('.viewer h2').innerText(), '| files:', await p.locator('.viewer .files .btn').allInnerTexts())
+await p.screenshot({ path: 'data/shots/viewer3d.png' })
+// mobile
+const m = await page(390, 844, true)
+await m.goto(`${base}/?q=poster`)
+await m.waitForSelector('.card img.loaded')
+await m.waitForTimeout(1500)
+await m.screenshot({ path: 'data/shots/mobile.png' })
+await m.locator('.card').first().tap()
+await m.waitForSelector('.viewer h2')
+await m.screenshot({ path: 'data/shots/mobile-viewer.png' })
+console.log('errors:', errors.length ? errors.slice(0, 10) : 'none')
+await browser.close()

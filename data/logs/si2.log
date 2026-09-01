@@ -4,3 +4,37 @@ si/nmah: shard 32/256, 1494 records, 5 3d
 si/nmah: shard 64/256, 3030 records, 8 3d
 si/nmah: shard 96/256, 4580 records, 9 3d
 si/nmah: shard 128/256, 6160 records, 16 3d
+si/nmah: shard 160/256, 7698 records, 21 3d
+si/nmah: shard 191 failed (terminated); continuing
+si/nmah: shard 192/256, 9183 records, 26 3d
+si/nmah: shard 224/256, 10673 records, 29 3d
+si/nmah: shard 256/256, 12284 records, 32 3d
+si/nmah: complete, 12284 records (32 3d)
+si/nmaahc: shard 32/256, 563 records, 1 3d
+si/nmaahc: shard 64/256, 1167 records, 5 3d
+si/nmaahc: shard 96/256, 1754 records, 9 3d
+si/nmaahc: shard 128/256, 2386 records, 12 3d
+si/nmaahc: shard 160/256, 2946 records, 20 3d
+si/nmaahc: shard 192/256, 3535 records, 22 3d
+si/nmaahc: shard 224/256, 4118 records, 27 3d
+si/nmaahc: shard 256/256, 4682 records, 32 3d
+si/nmaahc: complete, 4682 records (32 3d)
+si/nmai: shard 32/256, 15 records, 0 3d
+si/nmai: shard 64/256, 35 records, 0 3d
+si/nmai: shard 96/256, 57 records, 0 3d
+si/nmai: shard 128/256, 81 records, 0 3d
+si/nmai: shard 160/256, 106 records, 0 3d
+si/nmai: shard 192/256, 132 records, 0 3d
+si/nmai: shard 224/256, 161 records, 0 3d
+si/nmai: shard 256/256, 180 records, 0 3d
+si/nmai: complete, 180 records (0 3d)
+si/nmnhanthro: shard 32/256, 0 records, 0 3d
+si/nmnhanthro: shard 64/256, 0 records, 0 3d
+si/nmnhanthro: shard 96/256, 0 records, 0 3d
+si/nmnhanthro: shard 128/256, 0 records, 0 3d
+si/nmnhanthro: shard 160/256, 0 records, 0 3d
+si/nmnhanthro: shard 192/256, 0 records, 0 3d
+si/nmnhanthro: shard 224/256, 0 records, 0 3d
+si/nmnhanthro: shard 256/256, 0 records, 0 3d
+si/nmnhanthro: complete, 0 records (0 3d)
+--- si: 114504 records in staging (1306s)

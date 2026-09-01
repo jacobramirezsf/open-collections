@@ -50,7 +50,7 @@ export function rowToItem(r: Row): Item {
     }
   }
   const imgs = r.img ? expandImages(r.source, r.img) : { thumb: r.thumb_url, image: r.image_url, original: r.original_url }
-  if (imgs.original && !files.some((f) => f.url === imgs.original)) {
+  if (r.content_type === 'image' && imgs.original && !files.some((f) => f.url === imgs.original)) {
     files.unshift({ format: extOf(imgs.original) || 'jpg', url: imgs.original, label: r.source === 'cma' ? 'Full resolution TIFF' : 'Original' })
     if (r.source === 'cma' && imgs.image) files.splice(1, 0, { format: 'jpg', url: imgs.image, label: 'Print (~3400px)' })
   }

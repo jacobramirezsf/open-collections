@@ -3,6 +3,11 @@
 import type { Item, SearchParams, SearchResponse } from '../../shared/types.ts'
 import { getDb, indexMeta } from './db.ts'
 import { getItemsByRowids } from './items.ts'
+import { TEMPLATES } from '../../shared/urls.ts'
+
+// Sources whose records are public domain by default store NULL in public_domain (see build-index).
+const PD_DEFAULT_SOURCES = Object.entries(TEMPLATES).filter(([, t]) => t.rights?.publicDomain === true).map(([k]) => k)
+const PD_SQL = `(i.public_domain = 1 OR (i.public_domain IS NULL AND i.source IN (${PD_DEFAULT_SOURCES.map((k) => `'${k}'`).join(',')})))`
 
 const MAX_CANDIDATES = 1500 // per source, per query (offset + limit are capped below this)
 const COUNT_CAP = 5000
@@ -56,7 +61,7 @@ export function search(p: SearchParams): SearchResponse {
     where.push('i.content_type = ?')
     args.push(p.content)
   }
-  if (p.publicDomainOnly) where.push('i.public_domain = 1')
+  if (p.publicDomainOnly) where.push(PD_SQL)
   if (p.yearFrom != null && Number.isFinite(p.yearFrom)) {
     where.push('i.year_start IS NOT NULL AND i.year_start >= ?')
     args.push(p.yearFrom)
@@ -93,7 +98,7 @@ export function search(p: SearchParams): SearchResponse {
     for (const src of sources) {
       // score: bm25 is negative (lower = better). Convert to positive and add a small boost.
       const sql = `SELECT i.rowid AS rowid, i.year_start AS year, (-${BM25} + i.boost * 0.4) AS score
-        FROM fts JOIN items i ON i.rowid = fts.rowid
+        FROM fts CROSS JOIN items i ON i.rowid = fts.rowid
         WHERE fts MATCH ? AND i.source = ?${filterSql}
         ORDER BY ${orderFor('score DESC')} LIMIT ?`
       const rows = db.prepare(sql).all(expr, src, ...args, Math.min(MAX_CANDIDATES, need + 50)) as any[]
@@ -108,7 +113,7 @@ export function search(p: SearchParams): SearchResponse {
         if (rows.length < need + 50) perSource[src] = rows.length
         else {
           const c = db
-            .prepare(`SELECT COUNT(*) AS c FROM (SELECT 1 FROM fts JOIN items i ON i.rowid = fts.rowid WHERE fts MATCH ? AND i.source = ?${filterSql} LIMIT ${COUNT_CAP})`)
+            .prepare(`SELECT COUNT(*) AS c FROM (SELECT 1 FROM fts CROSS JOIN items i ON i.rowid = fts.rowid WHERE fts MATCH ? AND i.source = ?${filterSql} LIMIT ${COUNT_CAP})`)
             .get(expr, src, ...args) as any
           perSource[src] = c.c
         }

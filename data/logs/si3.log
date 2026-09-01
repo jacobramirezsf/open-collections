@@ -1,0 +1,8 @@
+
+=== Smithsonian (si) ===
+!!! si failed: Error: database is locked
+    at Object.setProgress (file:///Users/Jacob/Documents/Makery/projects/open-collections/scripts/ingest/lib/store.mjs:102:19)
+    at Module.ingest (file:///Users/Jacob/Documents/Makery/projects/open-collections/scripts/ingest/sources/si.mjs:177:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async file:///Users/Jacob/Documents/Makery/projects/open-collections/scripts/ingest/run.mjs:43:5
+--- si: 103991 records kept in staging
