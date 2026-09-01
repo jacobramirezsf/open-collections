@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, memo } from 'react'
 import type { Item } from '../../shared/types'
+import { proxyImageUrl } from '../lib/api'
 
 interface Props {
   items: Item[]
@@ -49,6 +50,15 @@ const Card = memo(function Card({ item, index, selected, selectMode, onOpen, onT
   onBroken: Props['onBroken']
 }) {
   const [loaded, setLoaded] = useState(false)
+  // Museum CDNs occasionally throttle or return non-image responses; retry once through our proxy before giving up.
+  const [src, setSrc] = useState(item.thumbnailUrl)
+  const [attempt, setAttempt] = useState(0)
+  const fail = () => {
+    if (attempt === 0 && item.thumbnailUrl) {
+      setAttempt(1)
+      setSrc(proxyImageUrl(item, 'thumb'))
+    } else onBroken(item.id)
+  }
   const ratio = item.width && item.height ? item.width / item.height : null
   const isModel = item.contentType === '3d'
   return (
@@ -61,9 +71,9 @@ const Card = memo(function Card({ item, index, selected, selectMode, onOpen, onT
       }}
       title={item.title}
     >
-      {item.thumbnailUrl ? (
+      {src ? (
         <img
-          src={item.thumbnailUrl}
+          src={src}
           alt=""
           loading="lazy"
           decoding="async"
@@ -71,10 +81,10 @@ const Card = memo(function Card({ item, index, selected, selectMode, onOpen, onT
           style={ratio && !loaded ? { aspectRatio: String(ratio) } : undefined}
           onLoad={(e) => {
             const img = e.currentTarget
-            if (img.naturalWidth < 8 || img.naturalHeight < 8) onBroken(item.id)
+            if (img.naturalWidth < 8 || img.naturalHeight < 8) fail()
             else setLoaded(true)
           }}
-          onError={() => onBroken(item.id)}
+          onError={fail}
         />
       ) : (
         <div className="ph">

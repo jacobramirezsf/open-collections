@@ -5,6 +5,19 @@ import http from 'node:http'
 import path from 'node:path'
 import fs from 'node:fs'
 import { Readable } from 'node:stream'
+import module from 'node:module'
+
+// The API imports './x.js' (what Vercel's builder emits); locally the sources are .ts, so map them.
+module.registerHooks({
+  resolve(specifier, context, next) {
+    if (specifier.endsWith('.js') && (specifier.startsWith('./') || specifier.startsWith('../'))) {
+      const ts = specifier.slice(0, -3) + '.ts'
+      const abs = new URL(ts, context.parentURL)
+      if (fs.existsSync(abs)) return next(ts, context)
+    }
+    return next(specifier, context)
+  },
+})
 
 const root = path.resolve(import.meta.dirname, '..')
 const port = Number(process.env.PORT || 3999)

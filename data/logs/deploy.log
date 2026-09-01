@@ -1,0 +1,82 @@
+<claude-code-hint v="1" type="plugin" value="vercel@claude-plugins-official" />
+Vercel CLI 59.10.0 (Node.js 25.8.0)
+Deploying open-collections
+Uploading [--------------------] (0.0B/160.4MB)
+Uploading [=====---------------] (40.1MB/160.4MB)
+Uploading [==========----------] (80.2MB/160.4MB)
+Uploading [===============-----] (120.3MB/160.4MB)
+Uploading [====================] (160.4MB/160.4MB)
+  Inspect         https://vercel.com/jacobramirezsfs-projects/open-collections/75jLScsPPqrQRuwTTvVsNVTuSUMb
+  Production      https://open-collections-2c5nf3aj5-jacobramirezsfs-projects.vercel.app
+Building…
+Building…
+Running build in Washington, D.C., USA (East) – iad1
+Build machine configuration: 4 cores, 8 GB
+Retrieving list of deployment files...
+Previous build caches not available.
+Downloading 55 deployment files...
+Running "vercel build"
+Vercel CLI 59.3.0
+Warning: Detected "engines": { "node": ">=22.13" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: https://vercel.link/node-version
+Installing dependencies...
+added 82 packages in 2s
+11 packages are looking for funding
+run `npm fund` for details
+npm warn allow-scripts 1 package has install scripts not yet covered by allowScripts:
+npm warn allow-scripts   esbuild@0.28.2 (postinstall: node install.js)
+npm warn allow-scripts
+npm warn allow-scripts Run `npm approve-scripts --allow-scripts-pending` to review, or `npm approve-scripts <pkg>` to allow.
+> open-collections@0.1.0 build
+> node scripts/fetch-index.mjs && tsc --noEmit -p tsconfig.json && vite build
+index: downloading [REDACTED]
+index: saved /vercel/path0/data/index.sqlite (168.2 MB)
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 38 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   1.05 kB │ gzip:  0.52 kB
+dist/assets/index-TmadZ5Hy.css   13.03 kB │ gzip:  3.45 kB
+dist/assets/index-Co5y5jL2.js   232.58 kB │ gzip: 74.44 kB
+✓ built in 1.25s
+Warning: Detected "engines": { "node": ">=22.13" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: https://vercel.link/node-version
+Using TypeScript 5.9.3 (local user-provided)
+Warning: Detected "engines": { "node": ">=22.13" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: https://vercel.link/node-version
+Using TypeScript 5.9.3 (local user-provided)
+Warning: Detected "engines": { "node": ">=22.13" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: https://vercel.link/node-version
+Using TypeScript 5.9.3 (local user-provided)
+Warning: Detected "engines": { "node": ">=22.13" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: https://vercel.link/node-version
+Using TypeScript 5.9.3 (local user-provided)
+Warning: Detected "engines": { "node": ">=22.13" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: https://vercel.link/node-version
+Using TypeScript 5.9.3 (local user-provided)
+Build Completed in /vercel/output [12s]
+Deploying outputs...
+[2K[1A[2K[G  Production      https://open-collections-2c5nf3aj5-jacobramirezsfs-projects.vercel.app
+Completing…
+▲ Aliased         https://open-collections-azure.vercel.app
+{
+  "status": "ok",
+  "deployment": {
+    "id": "dpl_75jLScsPPqrQRuwTTvVsNVTuSUMb",
+    "url": "https://open-collections-2c5nf3aj5-jacobramirezsfs-projects.vercel.app",
+    "inspectorUrl": "https://vercel.com/jacobramirezsfs-projects/open-collections/75jLScsPPqrQRuwTTvVsNVTuSUMb",
+    "readyState": "READY",
+    "target": "production",
+    "deploymentApiUrl": "https://api.vercel.com/v13/deployments/dpl_75jLScsPPqrQRuwTTvVsNVTuSUMb"
+  },
+  "message": "Deployment open-collections-2c5nf3aj5-jacobramirezsfs-projects.vercel.app ready.",
+  "next": [
+    {
+      "command": "vercel curl https://open-collections-2c5nf3aj5-jacobramirezsfs-projects.vercel.app",
+      "when": "Verify deployment, including when Deployment Protection is enabled"
+    },
+    {
+      "command": "vercel inspect open-collections-2c5nf3aj5-jacobramirezsfs-projects.vercel.app",
+      "when": "Inspect deployment"
+    },
+    {
+      "command": "vercel deploy --prod",
+      "when": "Promote to production"
+    }
+  ]
+}

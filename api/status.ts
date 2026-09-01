@@ -1,8 +1,8 @@
-import { handler, json } from './_lib/http.ts'
-import { indexMeta } from './_lib/db.ts'
-import { listSources } from './_lib/search.ts'
-import { SOURCE_META } from './_lib/sources.ts'
-import type { SourceInfo } from '../shared/types.ts'
+import { handler, json } from './_lib/http.js'
+import { indexMeta } from './_lib/db.js'
+import { listSources } from './_lib/search.js'
+import { SOURCE_META } from './_lib/sources.js'
+import type { SourceInfo } from '../shared/types.js'
 
 export default handler(async () => {
   const meta = indexMeta()

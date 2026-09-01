@@ -1,8 +1,8 @@
 // GET /api/download?id=<item id>&file=<index into item.files | 'image'>
 // Streams the original asset with a proper content-type and a sensible filename.
-import { handler, error, params } from './_lib/http.ts'
-import { getItemById } from './_lib/items.ts'
-import { proxyFetch, downloadName, extFromUrl } from './_lib/proxy.ts'
+import { handler, error, params } from './_lib/http.js'
+import { getItemById } from './_lib/items.js'
+import { proxyFetch, downloadName, extFromUrl } from './_lib/proxy.js'
 
 export const config = { maxDuration: 60 }
 

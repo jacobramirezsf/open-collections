@@ -1,6 +1,6 @@
-import type { SearchParams } from '../shared/types.ts'
-import { handler, json, params, intParam } from './_lib/http.ts'
-import { search } from './_lib/search.ts'
+import type { SearchParams } from '../shared/types.js'
+import { handler, json, params, intParam } from './_lib/http.js'
+import { search } from './_lib/search.js'
 
 export default handler(async (req: Request) => {
   const p = params(req)

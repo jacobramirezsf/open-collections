@@ -1,6 +1,6 @@
 // Fetches a remote asset that belongs to an indexed item and streams it back with a correct
 // content-type and (optionally) a download filename. Only URLs stored in the index are allowed.
-import type { Item } from '../../shared/types.ts'
+import type { Item } from '../../shared/types.js'
 
 const MIME: Record<string, string> = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', tif: 'image/tiff', tiff: 'image/tiff',

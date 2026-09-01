@@ -1,9 +1,9 @@
 // Search over the FTS5 index with per-source candidate retrieval and a diversity-aware merge,
 // so one large collection can't crowd out the others.
-import type { Item, SearchParams, SearchResponse } from '../../shared/types.ts'
-import { getDb, indexMeta } from './db.ts'
-import { getItemsByRowids } from './items.ts'
-import { TEMPLATES } from '../../shared/urls.ts'
+import type { Item, SearchParams, SearchResponse } from '../../shared/types.js'
+import { getDb, indexMeta } from './db.js'
+import { getItemsByRowids } from './items.js'
+import { TEMPLATES } from '../../shared/urls.js'
 
 // Sources whose records are public domain by default store NULL in public_domain (see build-index).
 const PD_DEFAULT_SOURCES = Object.entries(TEMPLATES).filter(([, t]) => t.rights?.publicDomain === true).map(([k]) => k)

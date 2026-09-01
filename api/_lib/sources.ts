@@ -1,4 +1,4 @@
-import type { SourceInfo } from '../../shared/types.ts'
+import type { SourceInfo } from '../../shared/types.js'
 
 // Display metadata for sources. Counts come from the index at runtime.
 export const SOURCE_META: Record<string, Omit<SourceInfo, 'count' | 'contentTypes'>> = {

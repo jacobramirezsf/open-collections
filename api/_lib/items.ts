@@ -1,7 +1,7 @@
-import type { Item, ItemFile } from '../../shared/types.ts'
-import { getDb } from './db.ts'
-import { sourceName } from './sources.ts'
-import { expandImages, defaultRecordUrl, defaultRights } from '../../shared/urls.ts'
+import type { Item, ItemFile } from '../../shared/types.js'
+import { getDb } from './db.js'
+import { sourceName } from './sources.js'
+import { expandImages, defaultRecordUrl, defaultRights } from '../../shared/urls.js'
 
 export interface Row {
   rowid: number
