@@ -14,6 +14,12 @@ interface Props {
   isSaved: (id: string) => boolean
 }
 
+function shortLabel(f: { label?: string; filename?: string }): string {
+  const l = (f.label || '').split(' · ')[0].trim()
+  if (!l || l === f.filename) return ''
+  return l.length > 28 ? l.slice(0, 27) + '…' : l
+}
+
 function rightsClass(item: Item) {
   return item.publicDomain === true ? 'pd' : item.publicDomain === null ? 'unclear' : ''
 }
@@ -109,7 +115,7 @@ export default function Viewer({ items, index, onClose, onNav, onSave, onSimilar
               {item.files.map((f, i) => (
                 <button key={i} className="btn small" onClick={() => triggerDownload(downloadUrl(item, i))} title={f.filename || f.url}>
                   {f.format.toUpperCase()}
-                  {f.label && f.label !== f.filename ? ` · ${f.label}` : ''}
+                  {shortLabel(f) ? ` · ${shortLabel(f)}` : ''}
                   {f.size ? ` · ${(f.size / 1e6).toFixed(1)} MB` : ''}
                 </button>
               ))}
