@@ -78,6 +78,10 @@ const Card = memo(function Card({ item, index, selected, selectMode, onOpen, onT
           loading="lazy"
           decoding="async"
           className={loaded ? 'loaded' : ''}
+          ref={(el) => {
+            // cached images can be complete before React attaches onLoad
+            if (el && !loaded && el.complete && el.naturalWidth > 8) setLoaded(true)
+          }}
           style={ratio && !loaded ? { aspectRatio: String(ratio) } : undefined}
           onLoad={(e) => {
             const img = e.currentTarget
