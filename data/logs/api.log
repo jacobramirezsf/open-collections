@@ -1,2 +1,2 @@
 api dev server http://localhost:3999
-200 /api/search?q=chair&limit=3 73ms
+200 /api/search?q=chair&limit=2 208ms

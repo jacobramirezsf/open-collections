@@ -21,9 +21,13 @@ export function intParam(p: URLSearchParams, key: string, def: number, min: numb
   return Math.min(max, Math.max(min, Math.trunc(n)))
 }
 
-// Wraps a handler so unexpected failures become a clean JSON 500 instead of a Vercel error page.
+import type { IncomingMessage, ServerResponse } from 'node:http'
+import { Readable } from 'node:stream'
+
+// Wraps a Web-style handler (Request → Response) so unexpected failures become a clean JSON 500,
+// and so it also works when invoked with Node's (req, res) signature (what Vercel's Node runtime uses).
 export function handler(fn: (req: Request) => Promise<Response> | Response) {
-  return async (req: Request): Promise<Response> => {
+  const run = async (req: Request): Promise<Response> => {
     try {
       return await fn(req)
     } catch (e: any) {
@@ -31,5 +35,27 @@ export function handler(fn: (req: Request) => Promise<Response> | Response) {
       const msg = e?.name === 'IndexMissingError' || /index not found/i.test(String(e?.message)) ? 'Search index unavailable' : 'Internal error'
       return error(msg, 500)
     }
+  }
+  return async (req: Request | IncomingMessage, res?: ServerResponse): Promise<Response | void> => {
+    if (!res) return run(req as Request)
+    const node = req as IncomingMessage
+    const proto = (node.headers['x-forwarded-proto'] as string) || 'https'
+    const host = (node.headers['x-forwarded-host'] as string) || node.headers.host || 'localhost'
+    const url = `${proto}://${host}${node.url || '/'}`
+    const headers = new Headers()
+    for (const [k, v] of Object.entries(node.headers)) if (typeof v === 'string') headers.set(k, v)
+    const method = node.method || 'GET'
+    const body = method === 'GET' || method === 'HEAD' ? undefined : (Readable.toWeb(node) as any)
+    const response = await run(new Request(url, { method, headers, body, ...(body ? { duplex: 'half' } : {}) } as RequestInit))
+    res.statusCode = response.status
+    response.headers.forEach((v, k) => res.setHeader(k, v))
+    if (!response.body) {
+      res.end()
+      return
+    }
+    const stream = Readable.fromWeb(response.body as any)
+    stream.on('error', () => res.destroy())
+    stream.pipe(res)
+    await new Promise<void>((resolve) => res.on('close', resolve))
   }
 }
