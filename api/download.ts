@@ -2,12 +2,17 @@
 // Streams the original asset with a proper content-type and a sensible filename.
 import { handler, error, params } from './_lib/http.js'
 import { getItemById } from './_lib/items.js'
-import { proxyFetch, downloadName, extFromUrl } from './_lib/proxy.js'
+import { proxyFetch, downloadName, extFromUrl, allowedRawUrl } from './_lib/proxy.js'
 
 export const config = { maxDuration: 60 }
 
 export default handler(async (req: Request) => {
   const p = params(req)
+  const raw = allowedRawUrl(p.get('url'))
+  if (raw) {
+    const name = (p.get('name') || raw.split('/').pop() || 'file').replace(/[^a-zA-Z0-9._-]+/g, '-').slice(0, 120)
+    return proxyFetch(raw, { download: name, range: req.headers.get('range'), redirectOnBlock: true })
+  }
   const id = p.get('id') || ''
   const item = getItemById(id)
   if (!item) return error('not found', 404)

@@ -9,6 +9,22 @@ const MIME: Record<string, string> = {
   '3ds': 'application/octet-stream', pdf: 'application/pdf', ply: 'application/octet-stream', dae: 'model/vnd.collada+xml',
 }
 
+// Hosts that may be proxied via a raw ?url= parameter (items not in the index, e.g. patents).
+export const URL_PROXY_HOSTS = new Set(['patentimages.storage.googleapis.com'])
+
+export function allowedRawUrl(raw: string | null): string | null {
+  if (!raw) return null
+  try {
+    const u = new URL(raw)
+    if (u.protocol !== 'https:') return null
+    if (URL_PROXY_HOSTS.has(u.host)) return u.href
+    if (u.host === 'storage.googleapis.com' && (u.pathname.startsWith('/patentimages/') || u.pathname.startsWith('/download/storage/v1/b/patentimages/'))) return u.href
+    return null
+  } catch {
+    return null
+  }
+}
+
 export function extFromUrl(url: string): string | null {
   const m = url.split(/[?#]/)[0].match(/\.([a-z0-9]{2,5})$/i)
   return m ? m[1].toLowerCase() : null

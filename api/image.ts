@@ -3,10 +3,12 @@
 // museum CDN blocks hotlinking). Only URLs stored in the index can be fetched.
 import { handler, error, params } from './_lib/http.js'
 import { getItemById } from './_lib/items.js'
-import { proxyFetch } from './_lib/proxy.js'
+import { proxyFetch, allowedRawUrl } from './_lib/proxy.js'
 
 export default handler(async (req: Request) => {
   const p = params(req)
+  const raw = allowedRawUrl(p.get('url'))
+  if (raw) return proxyFetch(raw, { timeoutMs: 20000 })
   const item = getItemById(p.get('id') || '')
   if (!item) return error('not found', 404)
   const size = p.get('size') || 'thumb'
