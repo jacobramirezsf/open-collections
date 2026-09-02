@@ -102,7 +102,10 @@ computed client-side.
 
 ## Halftone editor
 
-Every image item has a **Halftone** action in the viewer: the image is loaded through the
-same-origin proxy, optionally sent through remove.bg (server-side, `/api/removebg`, needs
-`REMOVE_BG_KEY`), then screened client-side on a canvas (rotated dot/line/square grid, adjustable
-cell, angle, gain, ink/paper colours, transparency-aware) and exported as a PNG.
+Every image item has a **Halftone** action in the viewer: the full-resolution image is loaded
+through the same-origin proxy, optionally sent through remove.bg (server-side, `/api/removebg`,
+needs `REMOVE_BG_KEY`), then screened client-side (rotated dot/line/square grid, adjustable cell,
+angle, gain, ink/paper colours, transparency-aware). The preview runs at ≤1800px; exports re-render
+the identical screen from the full-res source as a **PNG up to ~8000px** (size picker: source / 1.5× / 2×,
+64 MP ceiling) or as a **vector SVG** (each dot a real shape — resolution-independent, ready for
+screenprint separations in Illustrator/Inkscape). TIFF-only originals fall back to the largest JPEG rendition.

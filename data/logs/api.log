@@ -1,2 +1,17 @@
 api dev server http://localhost:3999
 501 /api/removebg 5ms
+200 /api/status 3ms
+200 /api/search?q=teapot&limit=250&sources=met%2Cnga&pd=1&seed=72974 126ms
+200 /api/search?q=teapot&limit=250&sources=met%2Cnga&pd=1&seed=72974 6ms
+200 /api/status 0ms
+200 /api/image?id=met%3A20144&size=orig 93ms
+200 /api/status 2ms
+200 /api/search?q=teapot&limit=250&sources=met%2Cnga&pd=1&seed=8890 96ms
+200 /api/search?q=teapot&limit=250&sources=met%2Cnga&pd=1&seed=8890 6ms
+200 /api/status 1ms
+200 /api/image?id=met%3A20144&size=orig 66ms
+200 /api/status 3ms
+200 /api/search?q=teapot&limit=250&sources=met%2Cnga&pd=1&seed=650882 94ms
+200 /api/search?q=teapot&limit=250&sources=met%2Cnga&pd=1&seed=650882 7ms
+200 /api/status 0ms
+200 /api/image?id=met%3A20144&size=orig 71ms
