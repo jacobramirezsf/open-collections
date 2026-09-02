@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Item, SourceInfo } from '../../shared/types'
-import type { Board } from '../lib/boards'
+import { FAVORITES_ID, type Board } from '../lib/boards'
 import type { Query } from '../lib/api'
 
 export function SidePanel({ title, onClose, children, extra }: { title: string; onClose: () => void; children: React.ReactNode; extra?: React.ReactNode }) {
@@ -24,7 +24,7 @@ export function SidePanel({ title, onClose, children, extra }: { title: string; 
   )
 }
 
-export function BoardsPanel({ boards, onClose, onOpen, onCreate, onDelete }: { boards: Board[]; onClose: () => void; onOpen: (b: Board) => void; onCreate: (name: string) => void; onDelete: (b: Board) => void }) {
+export function BoardsPanel({ boards, signedIn, onClose, onOpen, onCreate, onDelete }: { boards: Board[]; signedIn: boolean; onClose: () => void; onOpen: (b: Board) => void; onCreate: (name: string) => void; onDelete: (b: Board) => void }) {
   const [name, setName] = useState('')
   return (
     <SidePanel title="Boards" onClose={onClose}>
@@ -52,18 +52,20 @@ export function BoardsPanel({ boards, onClose, onOpen, onCreate, onDelete }: { b
             <b>{b.name}</b>
             <span>{b.items.length} item{b.items.length === 1 ? '' : 's'}</span>
           </div>
-          <button
-            className="btn small"
-            onClick={(e) => {
-              e.stopPropagation()
-              if (confirm(`Delete board “${b.name}”?`)) onDelete(b)
-            }}
-          >
-            Delete
-          </button>
+          {b.id !== FAVORITES_ID && (
+            <button
+              className="btn small"
+              onClick={(e) => {
+                e.stopPropagation()
+                if (confirm(`Delete board “${b.name}”?`)) onDelete(b)
+              }}
+            >
+              Delete
+            </button>
+          )}
         </div>
       ))}
-      <p className="faint" style={{ marginTop: 16, fontSize: 12 }}>Boards are stored in this browser (localStorage). Export a board as a contact sheet or ZIP to keep a copy.</p>
+      <p className="faint" style={{ marginTop: 16, fontSize: 12 }}>{signedIn ? 'Boards sync to your account and follow you across devices.' : 'Boards are stored in this browser. Sign in to sync them to an account.'}</p>
     </SidePanel>
   )
 }
@@ -288,6 +290,65 @@ export function PatentFilters({ draft, onChange, onApply, onClear }: { draft: Qu
         <span className="faint" style={{ fontSize: 12 }}>You can also type operators straight into the search box: inventor:, assignee:, country:, before:, after:, cpc:.</span>
       </div>
     </form>
+  )
+}
+
+export function AccountPanel({ auth, onClose, onSignIn, onSignOut }: {
+  auth: { user: string | null; syncing: boolean; error: string | null }
+  onClose: () => void
+  onSignIn: (action: 'login' | 'signup', username: string, password: string) => Promise<void>
+  onSignOut: () => void
+}) {
+  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [err, setErr] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  if (auth.user) {
+    return (
+      <SidePanel title="Account" onClose={onClose}>
+        <p style={{ marginTop: 0 }}>Signed in as <b>{auth.user}</b></p>
+        <p className="muted" style={{ fontSize: 13 }}>
+          {auth.syncing ? 'Syncing…' : auth.error ? auth.error : 'Boards and favorites sync to this account and follow you across browsers and devices.'}
+        </p>
+        <button className="btn" onClick={onSignOut}>Sign out</button>
+        <p className="faint" style={{ marginTop: 16, fontSize: 12 }}>Signing out keeps a copy of your boards in this browser.</p>
+      </SidePanel>
+    )
+  }
+  return (
+    <SidePanel title={mode === 'login' ? 'Sign in' : 'Create account'} onClose={onClose}>
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault()
+          setErr(null)
+          setBusy(true)
+          try {
+            await onSignIn(mode, username.toLowerCase().trim(), password)
+            onClose()
+          } catch (ex) {
+            setErr((ex as Error).message)
+          } finally {
+            setBusy(false)
+          }
+        }}
+      >
+        <span className="label">Username</span>
+        <input className="input" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" autoFocus style={{ marginBottom: 10 }} />
+        <span className="label">Password</span>
+        <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} style={{ marginBottom: 10 }} />
+        {err && <p style={{ color: 'var(--danger)', fontSize: 13 }}>{err}</p>}
+        <div className="row">
+          <button className="btn primary" type="submit" disabled={busy || !username || !password}>{busy ? 'Working…' : mode === 'login' ? 'Sign in' : 'Create account'}</button>
+          <button className="btn link" type="button" onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}>
+            {mode === 'login' ? 'New here? Create an account' : 'Have an account? Sign in'}
+          </button>
+        </div>
+      </form>
+      <p className="faint" style={{ marginTop: 16, fontSize: 12 }}>
+        An account syncs your boards and favorites across devices. Just a username and a password (8+ characters) — no email needed, so there's no password recovery: keep it somewhere safe.
+      </p>
+    </SidePanel>
   )
 }
 

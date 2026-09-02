@@ -7,6 +7,8 @@ interface Props {
   dense: boolean
   selectMode: boolean
   selected: Set<string>
+  favorites: Set<string>
+  onFavorite: (item: Item) => void
   onOpen: (item: Item, index: number) => void
   onToggle: (item: Item, index: number, shift: boolean) => void
   onBroken: (id: string) => void
@@ -40,14 +42,16 @@ function useColumnCount(ref: React.RefObject<HTMLDivElement | null>, dense: bool
   return cols
 }
 
-const Card = memo(function Card({ item, index, selected, selectMode, onOpen, onToggle, onBroken }: {
+const Card = memo(function Card({ item, index, selected, fav, selectMode, onOpen, onToggle, onBroken, onFavorite }: {
   item: Item
   index: number
   selected: boolean
+  fav: boolean
   selectMode: boolean
   onOpen: Props['onOpen']
   onToggle: Props['onToggle']
   onBroken: Props['onBroken']
+  onFavorite: Props['onFavorite']
 }) {
   const [loaded, setLoaded] = useState(false)
   // Museum CDNs occasionally throttle or return non-image responses; retry once through our proxy before giving up.
@@ -104,6 +108,16 @@ const Card = memo(function Card({ item, index, selected, selectMode, onOpen, onT
           onToggle(item, index, e.shiftKey)
         }}
       />
+      <button
+        className={'heart' + (fav ? ' on' : '')}
+        title={fav ? 'Remove from favorites' : 'Add to favorites'}
+        onClick={(e) => {
+          e.stopPropagation()
+          onFavorite(item)
+        }}
+      >
+        {fav ? '♥' : '♡'}
+      </button>
       <div className="cap">
         <b>{item.title}</b>
         {item.sourceName}
@@ -113,7 +127,7 @@ const Card = memo(function Card({ item, index, selected, selectMode, onOpen, onT
   )
 })
 
-export default function Grid({ items, dense, selectMode, selected, onOpen, onToggle, onBroken, onMarquee }: Props) {
+export default function Grid({ items, dense, selectMode, selected, favorites, onFavorite, onOpen, onToggle, onBroken, onMarquee }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const cols = useColumnCount(ref, dense)
   const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
@@ -194,7 +208,7 @@ export default function Grid({ items, dense, selectMode, selected, onOpen, onTog
         {columns.map((col, ci) => (
           <div className="column" key={ci}>
             {col.map(({ item, index }) => (
-              <Card key={item.id} item={item} index={index} selected={selected.has(item.id)} selectMode={selectMode} onOpen={onOpen} onToggle={onToggle} onBroken={onBroken} />
+              <Card key={item.id} item={item} index={index} selected={selected.has(item.id)} fav={favorites.has(item.id)} selectMode={selectMode} onOpen={onOpen} onToggle={onToggle} onBroken={onBroken} onFavorite={onFavorite} />
             ))}
           </div>
         ))}

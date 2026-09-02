@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Item } from '../shared/types'
 import { ApiError, DEFAULT_PATENT_QUERY, DEFAULT_QUERY, fetchStatus, paramsToQuery, queryToParams, search, searchPatents, type Query, type Status, type Tool } from './lib/api'
-import { boardStore, type Board } from './lib/boards'
+import { boardStore, FAVORITES_ID, type Board } from './lib/boards'
+import { onAuthChange, restoreSession, signIn, signOut, type AuthState } from './lib/account'
 import { rankSimilar } from './lib/similarity'
 import { saveBlob, zipItems } from './lib/zip'
 import { downloadFiles, type BatchProgress, type BatchSize } from './lib/download'
 import Grid from './components/Grid'
 import Viewer from './components/Viewer'
 import ContactSheet from './components/ContactSheet'
-import { BoardsPanel, Filters, PatentFilters, SaveToBoard, StatusPanel } from './components/Panels'
+import { AccountPanel, BoardsPanel, Filters, PatentFilters, SaveToBoard, StatusPanel } from './components/Panels'
 
 const HINTS: Record<Tool, string[]> = {
   museums: ['chair', 'woman', 'helmet', 'embroidery', 'bicycle', 'goggles', 'poster', 'tool', 'sewing machine', 'packaging', 'lettering', 'ceramics', 'Japanese textile', 'Italian furniture', 'rome', 'map', 'spacecraft'],
@@ -55,7 +56,8 @@ export default function App() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const lastClick = useRef<number | null>(null)
   const [viewerIndex, setViewerIndex] = useState<number | null>(null)
-  const [panel, setPanel] = useState<'boards' | 'sources' | null>(null)
+  const [panel, setPanel] = useState<'boards' | 'sources' | 'account' | null>(null)
+  const [auth, setAuth] = useState<AuthState>({ user: null, syncing: false, error: null })
   const [savePop, setSavePop] = useState<{ items: Item[]; anchor: HTMLElement | null } | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [dl, setDl] = useState<{ mode: 'files' | 'zip'; p: BatchProgress } | null>(null)
@@ -69,6 +71,18 @@ export default function App() {
   const say = useCallback((msg: string) => {
     setToast(msg)
     setTimeout(() => setToast(null), 2600)
+  }, [])
+
+  const favIds = useMemo(() => new Set(boards.find((b) => b.id === FAVORITES_ID)?.items.map((i) => i.id) ?? []), [boards])
+  const toggleFavorite = useCallback((item: Item) => {
+    const now = boardStore.toggleFavorite(item)
+    say(now ? 'Added to favorites ♥' : 'Removed from favorites')
+  }, [say])
+
+  useEffect(() => {
+    const off = onAuthChange(setAuth)
+    void restoreSession()
+    return off
   }, [])
 
   // Source status (once)
@@ -328,7 +342,10 @@ export default function App() {
             ))}
           </div>
           <button className={'btn' + (showFilters ? ' active' : '')} onClick={() => setShowFilters((v) => !v)}>Filters</button>
-          <button className="btn" onClick={() => setPanel('boards')}>Boards{boards.length ? ` (${boards.length})` : ''}</button>
+          <button className="btn" onClick={() => setPanel('boards')}>Boards{boards.length > 1 ? ` (${boards.length})` : ''}</button>
+          <button className={'btn' + (auth.user ? ' active' : '')} onClick={() => setPanel('account')} title={auth.user ? `Signed in as ${auth.user}` : 'Sign in to sync boards'}>
+            {auth.user ? `@${auth.user}` : 'Sign in'}
+          </button>
           <button className={'btn' + (selectMode ? ' active' : '')} onClick={() => { setSelectMode((v) => !v); if (selectMode) setSelected(new Set()) }}>Select</button>
           <button className="btn" onClick={() => { setDense((v) => { localStorage.setItem('oc:dense', v ? '0' : '1'); return !v }) }}>{dense ? 'Comfortable' : 'Dense grid'}</button>
           {tool === 'museums' && (
@@ -404,6 +421,8 @@ export default function App() {
         dense={dense}
         selectMode={selectMode}
         selected={selected}
+        favorites={favIds}
+        onFavorite={toggleFavorite}
         onOpen={(_, i) => setViewerIndex(i)}
         onToggle={toggle}
         onBroken={removeBroken}
@@ -443,11 +462,28 @@ export default function App() {
           onSave={(item, anchor) => openSave([item], anchor)}
           onSimilar={similarTo}
           isSaved={(id) => savedIds.has(id)}
+          isFavorite={(id) => favIds.has(id)}
+          onFavorite={toggleFavorite}
+        />
+      )}
+      {panel === 'account' && (
+        <AccountPanel
+          auth={auth}
+          onClose={() => setPanel(null)}
+          onSignIn={async (action, u, pw) => {
+            await signIn(action, u, pw)
+            say(action === 'signup' ? `Welcome, ${u}! Boards now sync to your account.` : `Signed in as ${u} — boards synced.`)
+          }}
+          onSignOut={() => {
+            void signOut()
+            say('Signed out. Boards stay in this browser.')
+          }}
         />
       )}
       {panel === 'boards' && (
         <BoardsPanel
           boards={boards}
+          signedIn={!!auth.user}
           onClose={() => setPanel(null)}
           onOpen={(b) => { setPanel(null); setSelected(new Set()); location.hash = `#/board/${b.id}`; setView({ kind: 'board', id: b.id }) }}
           onCreate={(name) => boardStore.create(name)}

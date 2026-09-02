@@ -16,7 +16,42 @@ export interface BoardStore {
   remove(id: string): void
   addItems(id: string, items: Item[]): number
   removeItem(id: string, itemId: string): void
+  toggleFavorite(item: Item): boolean // returns new state
+  isFavorite(id: string): boolean
+  setAll(boards: Board[]): void // used by cloud sync (merge result)
   subscribe(fn: () => void): () => void
+}
+
+export const FAVORITES_ID = 'favorites'
+
+function withFavorites(boards: Board[]): Board[] {
+  let fav = boards.find((b) => b.id === FAVORITES_ID)
+  if (!fav) {
+    fav = { id: FAVORITES_ID, name: 'Favorites', createdAt: 0, updatedAt: 0, items: [] }
+    boards = [fav, ...boards]
+  }
+  return [fav, ...boards.filter((b) => b.id !== FAVORITES_ID)]
+}
+
+// Union-merge two board lists (local + cloud): boards by id, items by item id.
+export function mergeBoards(a: Board[], b: Board[]): Board[] {
+  const byId = new Map<string, Board>()
+  for (const src of [a, b]) {
+    for (const board of src) {
+      const cur = byId.get(board.id)
+      if (!cur) {
+        byId.set(board.id, { ...board, items: [...board.items] })
+        continue
+      }
+      const newer = board.updatedAt > cur.updatedAt ? board : cur
+      const have = new Set(cur.items.map((i) => i.id))
+      for (const it of board.items) if (!have.has(it.id)) cur.items.push(it)
+      cur.name = newer.id === FAVORITES_ID ? 'Favorites' : newer.name
+      cur.updatedAt = Math.max(cur.updatedAt, board.updatedAt)
+      cur.createdAt = Math.min(cur.createdAt || board.createdAt, board.createdAt)
+    }
+  }
+  return withFavorites([...byId.values()].sort((x, y) => y.updatedAt - x.updatedAt))
 }
 
 const KEY = 'open-collections:boards:v1'
@@ -41,7 +76,7 @@ function save(boards: Board[]) {
 }
 
 export function createLocalBoardStore(): BoardStore {
-  let boards = load()
+  let boards = withFavorites(load())
   const listeners = new Set<() => void>()
   const commit = () => {
     boards = boards.slice() // new identity for React
@@ -50,7 +85,7 @@ export function createLocalBoardStore(): BoardStore {
   }
   window.addEventListener('storage', (e) => {
     if (e.key === KEY) {
-      boards = load()
+      boards = withFavorites(load())
       listeners.forEach((l) => l())
     }
   })
@@ -70,6 +105,7 @@ export function createLocalBoardStore(): BoardStore {
       commit()
     },
     remove(id) {
+      if (id === FAVORITES_ID) return
       boards = boards.filter((x) => x.id !== id)
       commit()
     },
@@ -95,6 +131,23 @@ export function createLocalBoardStore(): BoardStore {
       if (!b) return
       b.items = b.items.filter((i) => i.id !== itemId)
       b.updatedAt = Date.now()
+      commit()
+    },
+    toggleFavorite(item) {
+      const fav = boards.find((b) => b.id === FAVORITES_ID)!
+      const had = fav.items.some((i) => i.id === item.id)
+      if (had) fav.items = fav.items.filter((i) => i.id !== item.id)
+      else fav.items.unshift(item)
+      fav.updatedAt = Date.now()
+      commit()
+      return !had
+    },
+    isFavorite(id) {
+      const fav = boards.find((b) => b.id === FAVORITES_ID)
+      return !!fav?.items.some((i) => i.id === id)
+    },
+    setAll(next) {
+      boards = withFavorites(next)
       commit()
     },
     subscribe(fn) {

@@ -26,3 +26,6 @@
 3:00:50 PM [vite] (client) hmr update /src/App.tsx
 3:01:22 PM [vite] (client) hmr update /src/App.tsx
 3:01:23 PM [vite] (client) hmr update /src/styles.css
+3:12:20 PM [vite] .env.local changed, restarting server...
+3:12:20 PM [vite] (client) Re-optimizing dependencies because lockfile has changed
+3:12:20 PM [vite] server restarted.

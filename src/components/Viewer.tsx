@@ -13,6 +13,8 @@ interface Props {
   onSave: (item: Item, anchor: HTMLElement) => void
   onSimilar: (item: Item) => void
   isSaved: (id: string) => boolean
+  isFavorite: (id: string) => boolean
+  onFavorite: (item: Item) => void
 }
 
 function shortLabel(f: { label?: string; filename?: string }): string {
@@ -25,7 +27,7 @@ function rightsClass(item: Item) {
   return item.publicDomain === true ? 'pd' : item.publicDomain === null ? 'unclear' : ''
 }
 
-export default function Viewer({ items, index, onClose, onNav, onSave, onSimilar, isSaved }: Props) {
+export default function Viewer({ items, index, onClose, onNav, onSave, onSimilar, isSaved, isFavorite, onFavorite }: Props) {
   const item = items[index]
   const [src, setSrc] = useState<string | null>(null)
   const [failed, setFailed] = useState(0) // 0 = viewer image, 1 = thumb, 2 = proxy, 3 = give up
@@ -121,6 +123,9 @@ export default function Viewer({ items, index, onClose, onNav, onSave, onSimilar
                 {busy ? 'Downloading…' : 'Download'}
               </button>
             )}
+            <button className={'btn' + (isFavorite(item.id) ? ' active' : '')} onClick={() => onFavorite(item)} title="Favorite">
+              {isFavorite(item.id) ? '♥ Favorited' : '♡ Favorite'}
+            </button>
             <button className="btn" onClick={(e) => onSave(item, e.currentTarget)}>{isSaved(item.id) ? 'Saved ✓' : 'Save to board'}</button>
             {!is3d && <button className="btn" onClick={() => setEditing(true)}>Halftone</button>}
             <a className="btn" href={item.sourceUrl} target="_blank" rel="noopener noreferrer">Original record ↗</a>
