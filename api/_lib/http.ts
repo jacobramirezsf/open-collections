@@ -48,8 +48,20 @@ export function handler(fn: (req: Request) => Promise<Response> | Response) {
     const headers = new Headers()
     for (const [k, v] of Object.entries(node.headers)) if (typeof v === 'string') headers.set(k, v)
     const method = node.method || 'GET'
-    const body = method === 'GET' || method === 'HEAD' ? undefined : (Readable.toWeb(node) as any)
-    const response = await run(new Request(url, { method, headers, body, ...(body ? { duplex: 'half' } : {}) } as RequestInit))
+    // Vercel's Node runtime pre-reads and parses the request body onto req.body; the raw stream is
+    // already consumed, so waiting on it would hang until the function times out.
+    let body: any
+    let duplex = false
+    if (method !== 'GET' && method !== 'HEAD') {
+      const raw = (node as any).body
+      if (raw !== undefined && raw !== null) {
+        body = typeof raw === 'string' || Buffer.isBuffer(raw) ? raw : JSON.stringify(raw)
+      } else if (!node.readableEnded) {
+        body = Readable.toWeb(node) as any
+        duplex = true
+      }
+    }
+    const response = await run(new Request(url, { method, headers, body, ...(duplex ? { duplex: 'half' } : {}) } as RequestInit))
     res.statusCode = response.status
     response.headers.forEach((v, k) => res.setHeader(k, v))
     if (!response.body) {

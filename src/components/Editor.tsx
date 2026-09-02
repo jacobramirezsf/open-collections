@@ -227,7 +227,7 @@ export default function Editor({ item, onClose }: Props) {
         <div className="stage" style={params.paper === 'transparent' ? checker : undefined}>
           {busy && <div className="ph">{busy}</div>}
           {error && !busy && <div className="ph" style={{ color: 'var(--danger)' }}>{error}</div>}
-          <canvas ref={canvasRef} style={{ maxWidth: '100%', maxHeight: '100%', display: busy || (error && !source) ? 'none' : 'block' }} />
+          <canvas ref={canvasRef} style={{ maxWidth: '100%', maxHeight: '100%', display: (busy && !source) || (error && !source) ? 'none' : 'block', opacity: busy ? 0.4 : 1 }} />
         </div>
         <div className="info">
           <h3 style={{ marginTop: 0 }}>Image</h3>
