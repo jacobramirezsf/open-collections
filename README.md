@@ -1,9 +1,15 @@
 # Open Collections
 
-A fast, image-first browser for open-access museum collections and public-domain 3D models.
-Search “chair”, get a screen full of chairs from The Met, the Rijksmuseum, the Smithsonian, the
-National Gallery of Art, Cleveland, Chicago and NASA — open them, download originals, save them to
-boards, find visually similar objects, keep exploring.
+An umbrella of fast, image-first browsers for open visual archives, sharing one interface (dense
+masonry grid, viewer, boards, multi-select, batch downloads, contact sheets, similarity, halftone
+editor):
+
+- **Museums** (`/`) — 671k open-access objects and 3D models from 9 institutions, searched against
+  our own SQLite/FTS5 index. Search “chair”, get a screen full of chairs from The Met, the
+  Rijksmuseum, the Smithsonian, the National Gallery of Art, Cleveland, Chicago and NASA.
+- **Patents** (`/patents`) — live image-first Google Patents browsing (the successor to the
+  Patent Images Chrome extension): every result is a drawing sheet, with per-figure PNG and full
+  PDF downloads.
 
 **Live:** https://open-collections.vercel.app
 
@@ -99,6 +105,19 @@ supports click, shift-range, drag marquee, and “select all loaded”; selectio
 ZIP (assembled in the browser from `/api/download` streams), saved to a board, or printed as a
 contact sheet. “Similar” ranks the already-loaded results by a small perceptual image signature
 computed client-side.
+
+## Patents tool
+
+`/api/patents` proxies the same `/xhr/query` JSON endpoint patents.google.com uses internally (no
+key) and normalizes results into the shared `Item` shape, so the whole UI works unchanged — boards
+can mix museum objects and patents. Filters: date field (priority/filing/publication) + year range,
+inventor, assignee, country, utility vs design, granted vs application, sort; Google Patents
+operators (`inventor:`, `assignee:`, `cpc:`, `before:`/`after:`…) can also be typed straight into
+the search box. Images come from the public `patentimages.storage.googleapis.com` CDN; because
+patent items aren't in our index, `/api/download` and `/api/image` accept an allowlisted raw
+`?url=` (that CDN only). Responses are edge-cached for an hour; if Google briefly rate-limits, the
+UI shows a friendly retry message. US patent documents are treated as public record; other
+jurisdictions are labeled “check jurisdiction”.
 
 ## Halftone editor
 
