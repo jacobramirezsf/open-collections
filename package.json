@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/fetch-index.mjs && tsc --noEmit -p tsconfig.json && vite build",
+    "build": "tsc --noEmit -p tsconfig.json && vite build",
     "build:web": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p api/tsconfig.json",
@@ -21,13 +21,13 @@
   "dependencies": {
     "fflate": "^0.8.2",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "@vercel/blob": "^1.1.1"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
-    "@vercel/blob": "^1.1.1",
     "@vitejs/plugin-react": "^4.5.0",
     "playwright": "1.55",
     "typescript": "^5.8.0",

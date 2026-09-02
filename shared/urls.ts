@@ -23,10 +23,26 @@ const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 export const TEMPLATES: Record<string, Template> = {
   met: {
     extract: ({ thumb, original }) => {
+      const c = (original || '').match(/^https:\/\/commons\.wikimedia\.org\/wiki\/Special:FilePath\/([^?]+)$/)
+      if (c) {
+        try {
+          return 'c:' + decodeURIComponent(c[1])
+        } catch {
+          return null
+        }
+      }
       const m = (original || thumb || '').match(/^https:\/\/images\.metmuseum\.org\/CRDImages\/([^/]+)\/(?:original|web-large)\/([^/?#]+)$/)
       return m ? `${m[1]}/${m[2]}` : null
     },
     expand: (k) => {
+      if (k.startsWith('c:')) {
+        const enc = encodeURIComponent(k.slice(2))
+        return {
+          thumb: `https://commons.wikimedia.org/wiki/Special:FilePath/${enc}?width=600`,
+          image: `https://commons.wikimedia.org/wiki/Special:FilePath/${enc}?width=1600`,
+          original: `https://commons.wikimedia.org/wiki/Special:FilePath/${enc}`,
+        }
+      }
       const i = k.indexOf('/')
       const dept = k.slice(0, i)
       const file = k.slice(i + 1)
@@ -106,6 +122,17 @@ export const TEMPLATES: Record<string, Template> = {
     }),
     recordUrl: (sid) => `https://www.rijksmuseum.nl/en/collection/${sid}`,
     rights: PD,
+  },
+  wellcome: {
+    extract: ({ thumb }) => {
+      const m = (thumb || '').match(/^https:\/\/iiif\.wellcomecollection\.org\/image\/([^/]+)\/full\//)
+      return m ? m[1] : null
+    },
+    expand: (k) => ({
+      thumb: `https://iiif.wellcomecollection.org/image/${k}/full/600,/0/default.jpg`,
+      image: `https://iiif.wellcomecollection.org/image/${k}/full/1600,/0/default.jpg`,
+      original: `https://iiif.wellcomecollection.org/image/${k}/full/max/0/default.jpg`,
+    }),
   },
 }
 

@@ -3,6 +3,7 @@ import type { Item } from '../../shared/types'
 import { downloadUrl, proxyImageUrl } from '../lib/api'
 import { downloadItem, triggerDownload } from '../lib/zip'
 import { ModelIcon } from './Grid'
+import Editor from './Editor'
 
 interface Props {
   items: Item[]
@@ -30,6 +31,7 @@ export default function Viewer({ items, index, onClose, onNav, onSave, onSimilar
   const [failed, setFailed] = useState(0) // 0 = viewer image, 1 = thumb, 2 = proxy, 3 = give up
   const [bigLoaded, setBigLoaded] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [editing, setEditing] = useState(false)
 
   useEffect(() => {
     setFailed(0)
@@ -120,6 +122,7 @@ export default function Viewer({ items, index, onClose, onNav, onSave, onSimilar
               </button>
             )}
             <button className="btn" onClick={(e) => onSave(item, e.currentTarget)}>{isSaved(item.id) ? 'Saved ✓' : 'Save to board'}</button>
+            {!is3d && <button className="btn" onClick={() => setEditing(true)}>Halftone</button>}
             <a className="btn" href={item.sourceUrl} target="_blank" rel="noopener noreferrer">Original record ↗</a>
             {!is3d && <button className="btn" onClick={() => onSimilar(item)}>Similar</button>}
           </div>
@@ -141,6 +144,7 @@ export default function Viewer({ items, index, onClose, onNav, onSave, onSimilar
           </div>
         </div>
       </div>
+      {editing && <Editor item={item} onClose={() => setEditing(false)} />}
     </div>
   )
 }

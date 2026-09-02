@@ -1,3 +1,2 @@
 api dev server http://localhost:3999
-200 /api/search?q=chair&limit=2 208ms
-404 /api/download?id=aic:183077&file=image 3ms
+200 /api/search?q=poster&limit=3 70ms

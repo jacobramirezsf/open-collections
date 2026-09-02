@@ -168,6 +168,13 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-2)
 .viewer .files .btn { margin: 0 6px 6px 0; }
 .viewer .src { margin-top: 14px; font-size: 12px; color: var(--fg-3); }
 
+/* Editor */
+.editor { z-index: 65; }
+.editor .ctl { margin-bottom: 10px; }
+.editor .ctl input[type="range"] { width: 100%; accent-color: var(--fg); }
+.editor .ctl input[type="color"] { width: 44px; height: 30px; padding: 2px; border: 1px solid var(--line-2); border-radius: 3px; background: #fff; }
+.editor .info h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-3); margin: 18px 0 8px; }
+
 /* Contact sheet */
 .sheet { padding: 24px; background: #fff; color: #111; min-height: 100vh; }
 .sheet .stop { display: flex; align-items: baseline; gap: 12px; margin-bottom: 18px; }

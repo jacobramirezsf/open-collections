@@ -3,6 +3,8 @@
 import { DatabaseSync } from 'node:sqlite'
 import fs from 'node:fs'
 import path from 'node:path'
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 
 let db: DatabaseSync | null = null
 let dbPath: string | null = null
@@ -10,6 +12,7 @@ let dbPath: string | null = null
 function locate(): string | null {
   const candidates = [
     process.env.INDEX_PATH,
+    '/tmp/oc-index.sqlite',
     path.join(process.cwd(), 'data/index.sqlite'),
     path.resolve(import.meta.dirname ?? '.', '../../data/index.sqlite'),
     '/var/task/data/index.sqlite',
@@ -25,6 +28,38 @@ export function getDb(): DatabaseSync {
   db = new DatabaseSync(dbPath, { readOnly: true })
   db.exec('PRAGMA query_only = 1')
   return db
+}
+
+// The index is no longer bundled with the function (it outgrew Vercel's 250 MB limit). On a cold
+// start we stream it from INDEX_URL (a GitHub release asset) into /tmp once per instance; warm
+// invocations reuse the open handle. Redeploys recycle instances, so a new upload + redeploy is
+// enough to roll the index. Locally, data/index.sqlite is used directly.
+const TMP_PATH = '/tmp/oc-index.sqlite'
+let downloading: Promise<void> | null = null
+
+export async function ensureDb(): Promise<DatabaseSync> {
+  if (db) return db
+  if (!locate()) {
+    const url = process.env.INDEX_URL
+    if (!url) throw new IndexMissingError()
+    if (!downloading) {
+      downloading = (async () => {
+        const t0 = Date.now()
+        const res = await fetch(url, { redirect: 'follow' })
+        if (!res.ok || !res.body) throw new Error(`index download failed: HTTP ${res.status}`)
+        const part = TMP_PATH + '.part'
+        await pipeline(Readable.fromWeb(res.body as any), fs.createWriteStream(part))
+        fs.renameSync(part, TMP_PATH)
+        console.log(`index: downloaded ${(fs.statSync(TMP_PATH).size / 1e6).toFixed(0)} MB in ${Date.now() - t0} ms`)
+      })().catch((e) => {
+        downloading = null
+        throw e
+      })
+    }
+    await downloading
+    process.env.INDEX_PATH = TMP_PATH
+  }
+  return getDb()
 }
 
 export class IndexMissingError extends Error {

@@ -26,9 +26,12 @@ import { Readable } from 'node:stream'
 
 // Wraps a Web-style handler (Request → Response) so unexpected failures become a clean JSON 500,
 // and so it also works when invoked with Node's (req, res) signature (what Vercel's Node runtime uses).
+import { ensureDb } from './db.js'
+
 export function handler(fn: (req: Request) => Promise<Response> | Response) {
   const run = async (req: Request): Promise<Response> => {
     try {
+      await ensureDb()
       return await fn(req)
     } catch (e: any) {
       console.error(e)

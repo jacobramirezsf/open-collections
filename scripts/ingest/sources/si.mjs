@@ -20,10 +20,9 @@ export const UNITS = {
   hmsg: ['Hirshhorn', 10000],
   nmafa: ['National Museum of African Art', 10000],
   npg: ['National Portrait Gallery', 20000],
-  nmaahc: ['National Museum of African American History and Culture', 8000],
-  nmah: ['National Museum of American History', 30000],
-  nmai: ['National Museum of the American Indian', 8000],
-  nmnhanthro: ['NMNH Anthropology', 10000],
+  nmaahc: ['National Museum of African American History and Culture', 15000],
+  nmah: ['National Museum of American History', 70000],
+  nmai: ['National Museum of the American Indian', 25000],
   ocio_dpo3d: ['Smithsonian 3D', 5000],
 }
 
