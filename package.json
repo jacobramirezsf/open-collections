@@ -15,7 +15,6 @@
     "ingest": "node scripts/ingest/run.mjs",
     "index:build": "node scripts/ingest/build-index.mjs",
     "index:upload": "node scripts/upload-index.mjs",
-    "index:fetch": "node scripts/fetch-index.mjs",
     "api:dev": "vercel dev"
   },
   "dependencies": {

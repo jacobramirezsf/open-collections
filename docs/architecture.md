@@ -39,9 +39,11 @@ Normalization helpers (`scripts/ingest/lib/normalize.mjs`):
 - `fts` virtual table (FTS5, contentless, porter stemming, `detail=full`) over title, creator,
   object type, medium, culture, place and text. Contentless + `detail=column` breaks `bm25()`
   (returns 0) — keep `detail=full`.
-- Per-source caps keep the file under the function's 500 MB `/tmp` (`CAPS=` env to override). The
-  index is published as a GitHub release asset (free egress) and streamed into `/tmp` on cold start
-  by `api/_lib/db.ts` — it is NOT bundled with the function (250 MB bundle limit).
+- The index is split into shards (bin-packed whole sources, ≤ ~360 MB each) published as GitHub
+  release assets (free egress). Each shard is served by its own function (`api/shard-a.ts`, …) that
+  streams its file into its own `/tmp` on cold start; `/api/search` is a router that fans out to the
+  shard functions and re-merges scored candidates (`shared/shards.json` maps source → shard).
+  `/api/item`, `/api/download` and `/api/image` resolve items through the owning shard the same way.
 
 ### Search (`api/_lib/search.ts`)
 

@@ -1,14 +1,15 @@
 #!/usr/bin/env node
-// Publishes data/index.sqlite as a GitHub release asset (tag `index-latest`). GitHub serves release
-// assets with free bandwidth, which matters because every serverless cold start downloads the index.
-// The asset URL is stable: set it once as INDEX_URL in Vercel, then just re-run this + redeploy.
+// Publishes the index shards (data/index-*.sqlite) as GitHub release assets on the rolling
+// `index-latest` tag. Each shard is a stable URL: set INDEX_URL_A / INDEX_URL_B / … once in Vercel,
+// then just re-run this + redeploy. Commit shared/shards.json alongside (the API routes by it).
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
-const file = path.resolve(import.meta.dirname, '../data/index.sqlite')
-if (!fs.existsSync(file)) {
-  console.error('data/index.sqlite not found. Run `npm run index:build` first.')
+const dataDir = path.resolve(import.meta.dirname, '../data')
+const shards = fs.readdirSync(dataDir).filter((f) => /^index-[a-d]\.sqlite$/.test(f)).sort()
+if (!shards.length) {
+  console.error('No data/index-*.sqlite shards. Run `npm run index:build` first.')
   process.exit(1)
 }
 const TAG = 'index-latest'
@@ -16,11 +17,14 @@ const run = (args) => execFileSync('gh', args, { stdio: ['ignore', 'pipe', 'pipe
 try {
   run(['release', 'view', TAG])
 } catch {
-  console.log('creating release', TAG)
-  run(['release', 'create', TAG, '--title', 'Search index (rolling)', '--notes', 'Rolling build of data/index.sqlite. Uploaded by scripts/upload-index.mjs; see docs/refresh.md.'])
+  run(['release', 'create', TAG, '--title', 'Search index (rolling)', '--notes', 'Rolling build of the search index shards. Uploaded by scripts/upload-index.mjs; see docs/refresh.md.'])
 }
-console.log(`uploading ${(fs.statSync(file).size / 1e6).toFixed(0)} MB …`)
-execFileSync('gh', ['release', 'upload', TAG, file, '--clobber'], { stdio: 'inherit' })
 const repo = run(['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'])
-console.log(`uploaded: https://github.com/${repo}/releases/download/${TAG}/index.sqlite`)
-console.log('Redeploy (git push or `vercel deploy --prod`) so new instances pick it up.')
+for (const f of shards) {
+  const full = path.join(dataDir, f)
+  console.log(`uploading ${f} (${(fs.statSync(full).size / 1e6).toFixed(0)} MB)…`)
+  execFileSync('gh', ['release', 'upload', TAG, full, '--clobber'], { stdio: 'inherit' })
+  const letter = f.match(/^index-([a-d])/)[1].toUpperCase()
+  console.log(`  INDEX_URL_${letter} = https://github.com/${repo}/releases/download/${TAG}/${f}`)
+}
+console.log('Commit shared/shards.json if it changed, then redeploy (git push).')

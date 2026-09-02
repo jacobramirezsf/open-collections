@@ -139,13 +139,19 @@ export function search(p: SearchParams): SearchResponse {
 
   const merged = merge(candidates, sort, sources.length)
   const page = merged.slice(offset, offset + limit)
+  const scoreByRowid = new Map(page.map((c) => [c.rowid, c.score]))
   const items: Item[] = getItemsByRowids(page.map((c) => c.rowid))
+  for (const it of items) (it as any)._score = scoreByRowid.get((it as any)._rowid) ?? 0
   const total = Object.values(perSource).reduce((a, b) => a + b, 0)
   return { items, total, perSource, took: Date.now() - t0, index: { builtAt: indexMeta().builtAt } }
 }
 
 // Diversity-aware merge: at each step take the candidate with the best score, discounted by how many
 // items its source has already contributed. Keeps relevance while preventing one source from dominating.
+export function mergeScored<T extends { score: number; source: string; year: number | null }>(cands: T[], sort: string, nSources: number): T[] {
+  return merge(cands as any, sort, nSources) as any
+}
+
 function merge(cands: Cand[], sort: string, nSources: number): Cand[] {
   if (sort === 'oldest') return cands.sort((a, b) => (a.year ?? 0) - (b.year ?? 0))
   if (sort === 'newest') return cands.sort((a, b) => (b.year ?? 0) - (a.year ?? 0))

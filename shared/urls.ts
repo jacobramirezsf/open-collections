@@ -123,6 +123,17 @@ export const TEMPLATES: Record<string, Template> = {
     recordUrl: (sid) => `https://www.rijksmuseum.nl/en/collection/${sid}`,
     rights: PD,
   },
+  harvard: {
+    extract: ({ original }) => {
+      const m = (original || '').match(/^https:\/\/nrs\.harvard\.edu\/urn-3:HUAM:([A-Za-z0-9_.-]+)$/)
+      return m ? m[1] : null
+    },
+    expand: (k) => ({
+      thumb: `https://nrs.harvard.edu/urn-3:HUAM:${k}?width=600`,
+      image: `https://nrs.harvard.edu/urn-3:HUAM:${k}?width=1600`,
+      original: `https://nrs.harvard.edu/urn-3:HUAM:${k}`,
+    }),
+  },
   smk: {
     extract: ({ thumb }) => {
       const m = (thumb || '').match(/^https:\/\/iip-thumb\.smk\.dk\/iiif\/jp2\/([^/]+)\/full\//)

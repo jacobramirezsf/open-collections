@@ -95,7 +95,11 @@ export function getItemsByRowids(rowids: number[]): Item[] {
     const byId = new Map(rows.map((r) => [r.rowid, r]))
     for (const id of chunk) {
       const r = byId.get(id)
-      if (r) out.push(rowToItem(r))
+      if (r) {
+        const item = rowToItem(r)
+        ;(item as any)._rowid = r.rowid
+        out.push(item)
+      }
     }
   }
   return out

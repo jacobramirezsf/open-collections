@@ -45,6 +45,7 @@ See [docs/architecture.md](docs/architecture.md), [docs/sources.md](docs/sources
 | `cma` | Cleveland Museum of Art | Open Access API, paged | CC0 |
 | `nga` | National Gallery of Art | Open data CSVs (GitHub) + IIIF | CC0 (open-access images only) |
 | `rijks` | Rijksmuseum | OAI-PMH (`oai_dc`) from data.rijksmuseum.nl + IIIF | Public Domain Mark / CC0 only |
+| `harvard` | Harvard Art Museums | Official API (`HARVARD_API_KEY`, 2.5k req/day) | Not open license — labeled “verify rights”, hidden by the default PD filter |
 | `smk` | SMK — National Gallery of Denmark | Open API, paged | Public domain / CC0 |
 | `wellcome` | Wellcome Collection | Official catalogue snapshot (works.json.gz) + IIIF | PDM / CC0 / CC BY (per work) |
 | `nih3d` | NIH 3D | Per-entry JSON API scan | Public domain / CC0 / CC BY (per model) |
@@ -95,7 +96,6 @@ keyed candidates, ready to build once a (free) key exists as an env var:
 | Source | Key signup | Env var | What it adds |
 | --- | --- | --- | --- |
 | Europeana | https://pro.europeana.eu/page/get-api (instant email) | `EUROPEANA_API_KEY` | Millions of records from EU institutions, rights per record |
-| Harvard Art Museums | https://harvardartmuseums.org/collections/api (instant email) | `HARVARD_API_KEY` | ~250k objects with images |
 | Paris Musées | https://www.parismusees.paris.fr/en/open-content (form) | `PARIS_MUSEES_TOKEN` | ~400k CC0 images (Carnavalet, Petit Palais…) |
 | Finnish National Gallery | https://www.kansallisgalleria.fi/en/api-sale (email) | `FNG_API_KEY` | ~40k CC0 works |
 

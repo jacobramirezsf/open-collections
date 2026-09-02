@@ -1,0 +1,21 @@
+{
+  "builtAt": "2026-09-02T23:29:24.746Z",
+  "shards": {
+    "a": [
+      "rijks",
+      "met",
+      "metwiki",
+      "nga",
+      "cma",
+      "nih3d",
+      "nasa3d"
+    ],
+    "b": [
+      "harvard",
+      "si",
+      "wellcome",
+      "aic",
+      "smk"
+    ]
+  }
+}

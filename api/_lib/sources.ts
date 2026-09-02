@@ -10,6 +10,7 @@ export const SOURCE_META: Record<string, Omit<SourceInfo, 'count' | 'contentType
   si: { key: 'si', name: 'Smithsonian', homepage: 'https://www.si.edu/openaccess', license: 'CC0 (Open Access)' },
   nasa3d: { key: 'nasa3d', name: 'NASA 3D Resources', homepage: 'https://science.nasa.gov/3d-resources/', license: 'Public domain (NASA)' },
   nih3d: { key: 'nih3d', name: 'NIH 3D', homepage: 'https://3d.nih.gov/', license: 'Per model (PD / CC BY)' },
+  harvard: { key: 'harvard', name: 'Harvard Art Museums', homepage: 'https://harvardartmuseums.org/collections', license: 'Verify per object' },
   smk: { key: 'smk', name: 'SMK (Denmark)', homepage: 'https://open.smk.dk/en/', license: 'Public domain / CC0' },
   wellcome: { key: 'wellcome', name: 'Wellcome Collection', homepage: 'https://wellcomecollection.org/collections', license: 'PD / CC BY' },
 }

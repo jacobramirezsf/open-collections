@@ -3,7 +3,7 @@
 // daily cap is enforced, persisted in Vercel Blob when available (falls back to per-instance memory).
 // Returns 501 when no key is configured so the UI can hide/explain the feature.
 import { handler, error, json } from './_lib/http.js'
-import { getItemById } from './_lib/items.js'
+import { getItemsAcrossShards } from './_lib/router.js'
 
 export const config = { maxDuration: 60 }
 
@@ -49,7 +49,7 @@ export default handler(async (req: Request) => {
   } catch {
     return error('invalid body')
   }
-  const item = getItemById(String(body?.id || ''))
+  const [item] = await getItemsAcrossShards(req, [String(body?.id || '')])
   if (!item) return error('not found', 404)
   const imageUrl = item.imageUrl || item.thumbnailUrl
   if (!imageUrl) return error('no image', 404)

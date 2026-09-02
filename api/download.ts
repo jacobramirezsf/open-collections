@@ -1,7 +1,7 @@
 // GET /api/download?id=<item id>&file=<index into item.files | 'image'>
 // Streams the original asset with a proper content-type and a sensible filename.
 import { handler, error, params } from './_lib/http.js'
-import { getItemById } from './_lib/items.js'
+import { getItemsAcrossShards } from './_lib/router.js'
 import { proxyFetch, downloadName, extFromUrl, allowedRawUrl } from './_lib/proxy.js'
 
 export const config = { maxDuration: 60 }
@@ -14,7 +14,7 @@ export default handler(async (req: Request) => {
     return proxyFetch(raw, { download: name, range: req.headers.get('range'), redirectOnBlock: true })
   }
   const id = p.get('id') || ''
-  const item = getItemById(id)
+  const [item] = await getItemsAcrossShards(req, [id])
   if (!item) return error('not found', 404)
   const which = p.get('file') ?? '0'
   const size = p.get('size') // 'view' = ~1600px JPEG instead of the original (faster batch downloads)
