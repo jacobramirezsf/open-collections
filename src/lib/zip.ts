@@ -4,6 +4,7 @@
 import { Zip, ZipPassThrough } from 'fflate'
 import type { Item } from '../../shared/types'
 import { downloadUrl } from './api'
+import { fetchItemFile, type BatchSize } from './download'
 
 export interface ZipProgress {
   done: number
@@ -17,7 +18,7 @@ function filenameFrom(res: Response, fallback: string): string {
   return m ? decodeURIComponent(m[1]) : fallback
 }
 
-export async function zipItems(items: Item[], onProgress: (p: ZipProgress) => void, signal?: AbortSignal): Promise<Blob> {
+export async function zipItems(items: Item[], onProgress: (p: ZipProgress) => void, signal?: AbortSignal, size: BatchSize = 'orig'): Promise<Blob> {
   const chunks: Uint8Array[] = []
   const zip = new Zip((err, chunk) => {
     if (err) throw err
@@ -31,18 +32,10 @@ export async function zipItems(items: Item[], onProgress: (p: ZipProgress) => vo
     while (idx < items.length) {
       const item = items[idx++]
       if (signal?.aborted) return
-      const fileIdx = item.contentType === '3d' ? 0 : 'image'
       try {
-        let res = await fetch(downloadUrl(item, fileIdx), { signal, redirect: 'manual' })
-        let name = filenameFrom(res, `${item.source}-${slug(item.id.split(':').pop() || '')}-${slug(item.title)}.${extOf(item)}`)
-        if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400) || res.status === 502) {
-          // proxy was blocked upstream → fetch the original directly (hosts we index allow CORS)
-          const direct = fileIdx === 'image' ? item.originalImageUrl || item.imageUrl : item.files[fileIdx]?.url
-          if (!direct) throw new Error('no url')
-          res = await fetch(direct, { signal, mode: 'cors' })
-        }
-        if (!res.ok) throw new Error(String(res.status))
-        const buf = new Uint8Array(await res.arrayBuffer())
+        const { blob, name: fetchedName } = await fetchItemFile(item, size, signal)
+        const buf = new Uint8Array(await blob.arrayBuffer())
+        let name = fetchedName
         let n = 1
         while (used.has(name)) name = name.replace(/(\.[a-z0-9]+)$/i, `-${++n}$1`)
         used.add(name)
@@ -58,7 +51,7 @@ export async function zipItems(items: Item[], onProgress: (p: ZipProgress) => vo
       onProgress({ ...progress })
     }
   }
-  await Promise.all(Array.from({ length: 3 }, worker))
+  await Promise.all(Array.from({ length: 4 }, worker))
   const m = new ZipPassThrough('manifest.tsv')
   zip.add(m)
   m.push(new TextEncoder().encode(manifest.join('\n')), true)

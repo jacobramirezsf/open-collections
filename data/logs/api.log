@@ -1,2 +1,26 @@
 api dev server http://localhost:3999
 200 /api/item?id=wellcome:djkjbx4b 4ms
+200 /api/status 1ms
+200 /api/search?q=chair&limit=100&pd=1&seed=617666 264ms
+200 /api/search?q=chair&limit=100&pd=1&seed=617666 160ms
+200 /api/status 1ms
+200 /api/image?id=si%3Anmah_311199&size=thumb 303ms
+200 /api/image?id=si%3Anmah_513559&size=thumb 313ms
+200 /api/image?id=si%3Achndm_1924-6-1&size=thumb 337ms
+200 /api/image?id=si%3Anmah_311203&size=thumb 318ms
+200 /api/image?id=si%3Anmah_306576&size=thumb 317ms
+200 /api/image?id=si%3Anmah_308282&size=thumb 312ms
+200 /api/image?id=si%3Anmah_311294&size=thumb 255ms
+200 /api/image?id=si%3Anmah_311204&size=thumb 260ms
+200 /api/image?id=si%3Anmah_311182&size=thumb 377ms
+200 /api/image?id=si%3Anmah_311209&size=thumb 381ms
+200 /api/image?id=si%3Anmah_311192&size=thumb 468ms
+200 /api/image?id=si%3Anmah_311183&size=thumb 440ms
+200 /api/image?id=si%3Anmah_311181&size=thumb 405ms
+200 /api/image?id=si%3Anmah_1459133&size=thumb 627ms
+200 /api/download?id=si%3Anmah_311199&file=image 317ms
+200 /api/download?id=wellcome%3Aaqzg59jt&file=image 406ms
+200 /api/download?id=met%3A1650&file=image 650ms
+200 /api/download?id=wellcome%3Aaqzg59jt&file=image&size=view 75ms
+200 /api/download?id=si%3Anmah_311199&file=image&size=view 292ms
+200 /api/download?id=met%3A1650&file=image&size=view 292ms

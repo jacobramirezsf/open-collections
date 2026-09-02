@@ -12,10 +12,11 @@ export default handler(async (req: Request) => {
   const item = getItemById(id)
   if (!item) return error('not found', 404)
   const which = p.get('file') ?? '0'
+  const size = p.get('size') // 'view' = ~1600px JPEG instead of the original (faster batch downloads)
   let url: string | null = null
   let ext: string | null = null
   if (which === 'image') {
-    url = item.originalImageUrl || item.imageUrl || item.thumbnailUrl
+    url = size === 'view' ? item.imageUrl || item.originalImageUrl || item.thumbnailUrl : item.originalImageUrl || item.imageUrl || item.thumbnailUrl
   } else {
     const f = item.files[Number(which)]
     if (f) {

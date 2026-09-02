@@ -3,7 +3,8 @@ import type { Item } from '../shared/types'
 import { ApiError, DEFAULT_QUERY, fetchStatus, paramsToQuery, queryToParams, search, type Query, type Status } from './lib/api'
 import { boardStore, type Board } from './lib/boards'
 import { rankSimilar } from './lib/similarity'
-import { saveBlob, zipItems, type ZipProgress } from './lib/zip'
+import { saveBlob, zipItems } from './lib/zip'
+import { downloadFiles, type BatchProgress, type BatchSize } from './lib/download'
 import Grid from './components/Grid'
 import Viewer from './components/Viewer'
 import ContactSheet from './components/ContactSheet'
@@ -50,7 +51,8 @@ export default function App() {
   const [panel, setPanel] = useState<'boards' | 'sources' | null>(null)
   const [savePop, setSavePop] = useState<{ items: Item[]; anchor: HTMLElement | null } | null>(null)
   const [toast, setToast] = useState<string | null>(null)
-  const [zipping, setZipping] = useState<ZipProgress | null>(null)
+  const [dl, setDl] = useState<{ mode: 'files' | 'zip'; p: BatchProgress } | null>(null)
+  const [dlPop, setDlPop] = useState<HTMLElement | null>(null)
   const [similarItems, setSimilarItems] = useState<Item[] | null>(null)
   const [similarProgress, setSimilarProgress] = useState<string | null>(null)
   const boards = useBoards()
@@ -194,19 +196,29 @@ export default function App() {
     setSavePop(null)
   }
 
-  const downloadSelected = async () => {
+  const downloadSelected = async (mode: 'files' | 'zip', size: BatchSize) => {
+    setDlPop(null)
     const its = selectedItems.slice(0, 100)
     if (!its.length) return
     if (selectedItems.length > 100) say('Downloading the first 100 selected items')
-    setZipping({ done: 0, total: its.length, failed: [] })
     try {
-      const blob = await zipItems(its, setZipping)
-      const name = `open-collections-${(query.q || board?.name || 'selection').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-${its.length}.zip`
-      saveBlob(blob, name)
+      localStorage.setItem('oc:dl', mode + ':' + size)
+    } catch { /* private mode */ }
+    const onP = (p: BatchProgress) => setDl({ mode, p })
+    setDl({ mode, p: { done: 0, total: its.length, failed: [] } })
+    try {
+      if (mode === 'files') {
+        const p = await downloadFiles(its, size, onP)
+        if (p.failed.length) say(`${p.failed.length} file(s) failed`)
+      } else {
+        const blob = await zipItems(its, onP, undefined, size)
+        const name = `open-collections-${(query.q || board?.name || 'selection').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-${its.length}.zip`
+        saveBlob(blob, name)
+      }
     } catch (e) {
       say('Download failed: ' + (e as Error).message)
     } finally {
-      setZipping(null)
+      setDl(null)
     }
   }
 
@@ -354,7 +366,9 @@ export default function App() {
       {selected.size > 0 && (
         <div className="batchbar">
           <b>{selected.size} selected</b>
-          <button className="btn primary" onClick={downloadSelected} disabled={!!zipping}>{zipping ? `Zipping ${zipping.done}/${zipping.total}…` : 'Download ZIP'}</button>
+          <button className="btn primary" onClick={(e) => setDlPop(e.currentTarget)} disabled={!!dl}>
+            {dl ? `${dl.mode === 'zip' ? 'Zipping' : 'Saving'} ${dl.p.done}/${dl.p.total}…` : 'Download'}
+          </button>
           <button className="btn" onClick={(e) => openSave(selectedItems, e.currentTarget)}>Save to board</button>
           {selectedItems.length === 1 && selectedItems[0].contentType === 'image' && <button className="btn" onClick={() => similarTo(selectedItems[0])}>Similar</button>}
           <button className="btn" onClick={() => setView({ kind: 'sheet', title: query.q || board?.name || 'Selection', items: selectedItems })}>Contact sheet</button>
@@ -407,8 +421,20 @@ export default function App() {
           onClose={() => setSavePop(null)}
         />
       )}
+      {dlPop && (
+        <div className="pop" style={{ bottom: 64, left: Math.max(8, Math.min(window.innerWidth - 290, dlPop.getBoundingClientRect().left - 40)) }}>
+          <span className="label">Download {selected.size} item{selected.size === 1 ? '' : 's'}</span>
+          <div className="list">
+            <button onClick={() => downloadSelected('files', 'orig')}>Individual files — originals <span>best</span></button>
+            <button onClick={() => downloadSelected('files', 'view')}>Individual files — large JPG <span>fast</span></button>
+            <button onClick={() => downloadSelected('zip', 'orig')}>One ZIP — originals</button>
+            <button onClick={() => downloadSelected('zip', 'view')}>One ZIP — large JPG</button>
+          </div>
+          <div className="faint" style={{ fontSize: 11 }}>Your browser may ask once to allow multiple downloads.</div>
+          <button className="btn small" style={{ marginTop: 6 }} onClick={() => setDlPop(null)}>Cancel</button>
+        </div>
+      )}
       {toast && <div className="toast">{toast}</div>}
-      {zipping && zipping.failed.length > 0 && <div className="toast">{zipping.failed.length} file(s) failed</div>}
     </>
   )
 }
