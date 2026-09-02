@@ -124,14 +124,16 @@ export const TEMPLATES: Record<string, Template> = {
     rights: PD,
   },
   wellcome: {
+    // The /thumbs/ endpoint confines over-sized requests to each image's largest available size;
+    // the /image/ endpoint returns empty 200s beyond ~1024px, so full resolution isn't served.
     extract: ({ thumb }) => {
-      const m = (thumb || '').match(/^https:\/\/iiif\.wellcomecollection\.org\/image\/([^/]+)\/full\//)
+      const m = (thumb || '').match(/^https:\/\/iiif\.wellcomecollection\.org\/(?:image|thumbs)\/([^/]+)\/full\//)
       return m ? m[1] : null
     },
     expand: (k) => ({
-      thumb: `https://iiif.wellcomecollection.org/image/${k}/full/600,/0/default.jpg`,
-      image: `https://iiif.wellcomecollection.org/image/${k}/full/1600,/0/default.jpg`,
-      original: `https://iiif.wellcomecollection.org/image/${k}/full/max/0/default.jpg`,
+      thumb: `https://iiif.wellcomecollection.org/thumbs/${k}/full/!600,600/0/default.jpg`,
+      image: `https://iiif.wellcomecollection.org/thumbs/${k}/full/!1024,1024/0/default.jpg`,
+      original: `https://iiif.wellcomecollection.org/thumbs/${k}/full/!1024,1024/0/default.jpg`,
     }),
   },
 }

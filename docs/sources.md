@@ -49,7 +49,7 @@ Verified against the live endpoints on 2026-08-31. Each adapter lives in `script
 ## wellcome — Wellcome Collection
 - Official snapshot `data.wellcomecollection.org/catalogue/v2/works.json.gz` (~485 MB gz NDJSON, refreshed regularly) — the live API caps any query at 10k works, the snapshot has no such limit.
 - Kept: works with a `iiif-image` location and license `pdm`, `cc0` or `cc-by` (~75k). License is per work and stored per record; `pdm`/`cc0` count as public domain, `cc-by` does not (hidden by the default PD filter).
-- Images: `iiif.wellcomecollection.org/image/{id}/full/{600,|1600,|max}/0/default.jpg`.
+- Images: `iiif.wellcomecollection.org/thumbs/{id}/full/!{600,600|1024,1024}/0/default.jpg`. The `/image/` endpoint silently returns EMPTY 200 responses for sizes beyond each image's pre-generated list (max ~1024px); `/thumbs/` confines over-asks to the largest available. Full resolution is only reachable via 512px tiles, so 1024px is the effective cap.
 
 ## nih3d — NIH 3D
 - No listing API: entry ids are scanned sequentially (`3d.nih.gov/api/entries/{id}`, `NIH_MAX_ID` = 23000, ~45 min). ~14k entries keep a published submission with an open license (Public Domain / CC0 / CC BY, per entry) and model files.
