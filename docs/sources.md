@@ -40,9 +40,23 @@ Verified against the live endpoints on 2026-08-31. Each adapter lives in `script
 - `science.nasa.gov/wp-json/wp/v2/topic?parent=447593&per_page=100&page=N` (~380 models). Download links are regexed out of `content.rendered` (`assets.science.nasa.gov/content/dam/...`), formats: STL, GLB, zips of STL/OBJ, FBX, Blender…
 - `featured_image_url` is the preview; the `?w=&fit=clip` params resize it.
 
+## metwiki — The Met via Wikimedia Commons
+- Wikidata items carry a Met object ID (P3634) and a Commons image (P18); QLever (`qlever.dev/api/wikidata`) returns all ~46k pairs in one query (`data/raw/met-wikidata.csv`).
+- Joined against the public-domain rows of MetObjects.csv (`met_csv` table); objects the API crawl already covered are skipped, and the crawl overwrites these records later (same `met:{id}` namespace, better images).
+- Images via `commons.wikimedia.org/wiki/Special:FilePath/{name}?width=…` (redirects to upload.wikimedia.org).
+- Dead end, documented so nobody retries it: the other ~340k Met files on Commons have no machine-readable object-ID/accession mapping (P217 qualifiers ≈ 0, P6243 ≈ 14k).
+
+## wellcome — Wellcome Collection
+- Official snapshot `data.wellcomecollection.org/catalogue/v2/works.json.gz` (~485 MB gz NDJSON, refreshed regularly) — the live API caps any query at 10k works, the snapshot has no such limit.
+- Kept: works with a `iiif-image` location and license `pdm`, `cc0` or `cc-by` (~75k). License is per work and stored per record; `pdm`/`cc0` count as public domain, `cc-by` does not (hidden by the default PD filter).
+- Images: `iiif.wellcomecollection.org/image/{id}/full/{600,|1600,|max}/0/default.jpg`.
+
+## nih3d — NIH 3D
+- No listing API: entry ids are scanned sequentially (`3d.nih.gov/api/entries/{id}`, `NIH_MAX_ID` = 23000, ~45 min). ~14k entries keep a published submission with an open license (Public Domain / CC0 / CC BY, per entry) and model files.
+- Downloads must go through the site proxy `3d.nih.gov/api/submissions/{sid}/runs/{runId}/output-files/{fileId}` (S3 URLs are private); responses have no content-type, our `/api/download` fixes that by extension. Formats: STL, GLB, WRL, X3D.
+- Thumbnails use the same proxy (`*_thumb_*.jpg` output files).
+
 ## Candidates evaluated but not (yet) included
-- **Wellcome Collection** — good API (no key, CORS, IIIF, license per item: `pdm`, `cc-by`), but capped at 10k works per query; would need query partitioning or the snapshot dataset.
 - **Library of Congress** — JSON API works without a key but is limited to 20 requests/min with hour-long blocks; rights are free text (“No known restrictions…”).
-- **NIH 3D** — per-entry JSON (`3d.nih.gov/api/entries/{id}`, ~22k entries, license per entry) with a working file proxy; sequential enumeration is feasible as a later adapter.
 - **Sketchfab / MorphoSource** — downloads require login.
 - **threedscans.com** — direct STL zips but no license statement on the site.

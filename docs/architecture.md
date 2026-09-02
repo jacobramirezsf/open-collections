@@ -39,7 +39,9 @@ Normalization helpers (`scripts/ingest/lib/normalize.mjs`):
 - `fts` virtual table (FTS5, contentless, porter stemming, `detail=full`) over title, creator,
   object type, medium, culture, place and text. Contentless + `detail=column` breaks `bm25()`
   (returns 0) — keep `detail=full`.
-- Per-source caps keep the file under Vercel's 250 MB function limit (`CAPS=` env to override).
+- Per-source caps keep the file under the function's 500 MB `/tmp` (`CAPS=` env to override). The
+  index is published as a GitHub release asset (free egress) and streamed into `/tmp` on cold start
+  by `api/_lib/db.ts` — it is NOT bundled with the function (250 MB bundle limit).
 
 ### Search (`api/_lib/search.ts`)
 

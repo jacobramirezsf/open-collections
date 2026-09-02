@@ -19,21 +19,24 @@ node scripts/dev-api.mjs & npm run dev
 node scripts/e2e.mjs                           # Playwright smoke test (searches, viewer, boards, 3D, mobile)
 
 # 4. Publish
-vercel env pull .env.local                     # once, for BLOB_READ_WRITE_TOKEN
-set -a; . ./.env.local; set +a
-npm run index:upload                           # → https://…public.blob.vercel-storage.com/index/index.sqlite
-git push                                       # or: vercel deploy --prod  (the build downloads INDEX_URL)
+npm run index:upload                           # gh release upload → stable INDEX_URL asset
+git push                                       # or: vercel deploy --prod
 ```
 
-The Blob URL is stable, so `INDEX_URL` only needs to be set once. A redeploy is required after each
-upload because the file is bundled into the functions at build time.
+The release-asset URL is stable, so `INDEX_URL` only needs to be set once. A redeploy is still
+required after each upload: running instances keep their `/tmp` copy, and a deploy recycles them.
+
+Additional inputs: `npm run ingest -- metwiki` refreshes the Met-via-Commons records; its input CSV
+(`data/raw/met-wikidata.csv`) is re-fetched with the QLever query in the header of
+`scripts/ingest/sources/metwiki.mjs`.
 
 ## Size budget
 
-Vercel functions must stay under 250 MB uncompressed. `build-index.mjs` applies per-source caps
-(`DEFAULT_CAPS`) — roughly 520 bytes per record including the FTS index, so ~430k records is the
-practical ceiling. Capped sources keep highlights (`boost > 0`) first, then a stable pseudo-random
-subset, so the sample stays diverse.
+The index streams into the function's `/tmp` (500 MB) on cold start, so keep it under ~450 MB —
+roughly 550 bytes per record including the FTS index. `build-index.mjs` applies per-source caps
+(`DEFAULT_CAPS`, override with `CAPS=`). Capped sources keep highlights (`boost > 0`) first, then a
+stable pseudo-random subset, so the sample stays diverse. Cold starts pay an index download (~10 s);
+warm requests don't.
 
 ## Scheduling
 

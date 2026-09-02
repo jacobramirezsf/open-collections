@@ -1,2 +1,10 @@
 api dev server http://localhost:3999
-200 /api/search?q=poster&limit=3 70ms
+200 /api/search?q=chair&limit=8&pd=1 154ms
+200 /api/search?q=chair&limit=8&pd=1 151ms
+200 /api/search?q=packaging&limit=8&pd=1 2ms
+200 /api/search?q=bicycle&limit=8&pd=1 2ms
+200 /api/search?q=goggles&limit=8&pd=1 1ms
+200 /api/search?q=anatomy&limit=8&pd=1 179ms
+200 /api/search?q=skull&limit=8&pd=1 30ms
+200 /api/search?limit=8&pd=1 733ms
+200 /api/search?q=skull&content=3d&limit=6 18ms
