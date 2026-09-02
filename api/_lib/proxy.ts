@@ -79,7 +79,7 @@ export async function proxyFetch(url: string, opts: { download?: string | null; 
     // Some image hosts (e.g. AIC's Cloudflare) refuse datacenter IPs. Hand the browser the original URL
     // instead of failing: it can fetch it directly (these hosts allow CORS / hotlinking from browsers).
     if (opts.redirectOnBlock && (upstream.status === 403 || upstream.status === 429 || upstream.status === 503)) {
-      return new Response(null, { status: 302, headers: { location: url, 'cache-control': 'no-store', 'x-oc-fallback': 'direct' } })
+      return new Response(null, { status: 302, headers: { location: url, 'cache-control': 'no-store', 'x-oc-fallback': 'direct', 'x-oc-upstream-status': String(upstream.status) } })
     }
     return new Response(JSON.stringify({ error: `Upstream returned ${upstream.status}` }), {
       status: upstream.status === 404 ? 404 : 502,

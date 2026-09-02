@@ -124,15 +124,19 @@ export const TEMPLATES: Record<string, Template> = {
     rights: PD,
   },
   harvard: {
+    // the urn prefix appears as both HUAM and huam upstream — keep it in the key verbatim
     extract: ({ original }) => {
-      const m = (original || '').match(/^https:\/\/nrs\.harvard\.edu\/urn-3:HUAM:([A-Za-z0-9_.-]+)$/)
+      const m = (original || '').match(/^https:\/\/nrs\.harvard\.edu\/urn-3:((?:HUAM|huam):[A-Za-z0-9_.-]+)$/)
       return m ? m[1] : null
     },
-    expand: (k) => ({
-      thumb: `https://nrs.harvard.edu/urn-3:HUAM:${k}?width=600`,
-      image: `https://nrs.harvard.edu/urn-3:HUAM:${k}?width=1600`,
-      original: `https://nrs.harvard.edu/urn-3:HUAM:${k}`,
-    }),
+    expand: (k) => {
+      const kk = k.includes(':') ? k : 'HUAM:' + k // older builds stored the key without the prefix
+      return {
+        thumb: `https://nrs.harvard.edu/urn-3:${kk}?width=600`,
+        image: `https://nrs.harvard.edu/urn-3:${kk}?width=1600`,
+        original: `https://nrs.harvard.edu/urn-3:${kk}`,
+      }
+    },
   },
   smk: {
     extract: ({ thumb }) => {

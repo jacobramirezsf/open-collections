@@ -38,7 +38,7 @@ async function loadForCanvas(item: Item): Promise<HTMLImageElement> {
       /* fall through to proxy */
     }
   }
-  return loadImage(proxyImageUrl(item, 'thumb'), false)
+  return loadImage(proxyImageUrl(item, 'thumb'), true)
 }
 
 export async function signature(item: Item): Promise<Signature | null> {
