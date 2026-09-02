@@ -220,6 +220,77 @@ export function Filters({ draft, sources, onChange, onApply, onClear }: { draft:
   )
 }
 
+export function PatentFilters({ draft, onChange, onApply, onClear }: { draft: Query; onChange: (q: Query) => void; onApply: () => void; onClear: () => void }) {
+  const num = (v: string) => (v.trim() === '' ? undefined : Number.isFinite(Number(v)) ? Number(v) : undefined)
+  return (
+    <form
+      className="filters"
+      onSubmit={(e) => {
+        e.preventDefault()
+        onApply()
+      }}
+    >
+      <div>
+        <span className="label">Date field</span>
+        <select className="input" value={draft.pDateType ?? 'publication'} onChange={(e) => onChange({ ...draft, pDateType: e.target.value as Query['pDateType'] })}>
+          <option value="publication">Publication date</option>
+          <option value="filing">Filing date</option>
+          <option value="priority">Priority date</option>
+        </select>
+      </div>
+      <div>
+        <span className="label">Year from</span>
+        <input className="input" type="number" placeholder="1900" value={draft.from ?? ''} onChange={(e) => onChange({ ...draft, from: num(e.target.value) })} />
+      </div>
+      <div>
+        <span className="label">Year to</span>
+        <input className="input" type="number" placeholder="1980" value={draft.to ?? ''} onChange={(e) => onChange({ ...draft, to: num(e.target.value) })} />
+      </div>
+      <div>
+        <span className="label">Inventor</span>
+        <input className="input" placeholder="name" value={draft.creator ?? ''} onChange={(e) => onChange({ ...draft, creator: e.target.value || undefined })} />
+      </div>
+      <div>
+        <span className="label">Assignee / company</span>
+        <input className="input" placeholder="company" value={draft.pAssignee ?? ''} onChange={(e) => onChange({ ...draft, pAssignee: e.target.value || undefined })} />
+      </div>
+      <div>
+        <span className="label">Country</span>
+        <input className="input" placeholder="US, EP, JP…" value={draft.pCountry ?? ''} onChange={(e) => onChange({ ...draft, pCountry: e.target.value || undefined })} />
+      </div>
+      <div>
+        <span className="label">Kind</span>
+        <select className="input" value={draft.pType ?? ''} onChange={(e) => onChange({ ...draft, pType: (e.target.value || undefined) as Query['pType'] })}>
+          <option value="">Any</option>
+          <option value="PATENT">Utility patent</option>
+          <option value="DESIGN">Design patent</option>
+        </select>
+      </div>
+      <div>
+        <span className="label">Status</span>
+        <select className="input" value={draft.pStatus ?? ''} onChange={(e) => onChange({ ...draft, pStatus: (e.target.value || undefined) as Query['pStatus'] })}>
+          <option value="">Any</option>
+          <option value="GRANT">Granted</option>
+          <option value="APPLICATION">Application</option>
+        </select>
+      </div>
+      <div>
+        <span className="label">Sort</span>
+        <select className="input" value={draft.sort ?? 'relevance'} onChange={(e) => onChange({ ...draft, sort: e.target.value === 'relevance' ? undefined : (e.target.value as Query['sort']) })}>
+          <option value="relevance">Relevance</option>
+          <option value="oldest">Oldest first</option>
+          <option value="newest">Newest first</option>
+        </select>
+      </div>
+      <div className="actions">
+        <button className="btn primary" type="submit">Apply</button>
+        <button className="btn" type="button" onClick={onClear}>Clear filters</button>
+        <span className="faint" style={{ fontSize: 12 }}>You can also type operators straight into the search box: inventor:, assignee:, country:, before:, after:, cpc:.</span>
+      </div>
+    </form>
+  )
+}
+
 export function itemsLabel(items: Item[]) {
   return `${items.length} item${items.length === 1 ? '' : 's'}`
 }

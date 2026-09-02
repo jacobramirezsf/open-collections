@@ -53,6 +53,10 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-2)
 .brand h1 a { text-decoration: none; }
 .brand .sub { color: var(--fg-2); font-size: 13px; }
 .brand .right { margin-left: auto; display: flex; gap: 12px; align-items: center; font-size: 13px; }
+.brand .tools { display: inline-flex; border: 1px solid var(--line-2); border-radius: 3px; overflow: hidden; margin-left: 4px; }
+.brand .tools button { border: none; background: transparent; padding: 4px 12px; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-2); cursor: pointer; }
+.brand .tools button + button { border-left: 1px solid var(--line-2); }
+.brand .tools button.active { background: var(--fg); color: var(--bg); }
 .searchrow { display: flex; gap: 8px; }
 .searchrow input { flex: 1; height: 44px; font-size: 18px; padding: 8px 12px; border: 1px solid var(--fg); border-radius: 3px; background: #fff; }
 .searchrow input:focus { outline: none; box-shadow: 0 0 0 2px var(--fg); }
@@ -195,6 +199,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-2)
 @media (max-width: 800px) {
   .top { padding: 10px 12px 8px; }
   .brand .right { display: none; }
+  .brand .sub { display: none; }
   .searchrow input { height: 40px; font-size: 16px; }
   .searchrow .btn { height: 40px; padding: 0 12px; }
   .toolbar { gap: 6px; }

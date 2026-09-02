@@ -1,2 +1,14 @@
 api dev server http://localhost:3999
 200 /api/patents?q=goggles&num=10 2318ms
+200 /api/status 1ms
+200 /api/status 1ms
+200 /api/patents?q=goggles&num=100&page=0 2577ms
+200 /api/patents?q=goggles&num=100&page=0 4241ms
+502 /api/image?url=https%3A%2F%2Fpatentimages.storage.googleapis.com%2F60x80%2FUS12517376B2%2FUS12517376-20260106-D00000.png 151ms
+502 /api/image?url=https%3A%2F%2Fpatentimages.storage.googleapis.com%2F60x80%2FUS12399384B2%2FUS12399384-20250826-D00000.png 150ms
+502 /api/image?url=https%3A%2F%2Fpatentimages.storage.googleapis.com%2F60x80%2FUS12585142B2%2FUS12585142-20260324-D00000.png 148ms
+502 /api/image?url=https%3A%2F%2Fpatentimages.storage.googleapis.com%2F60x80%2FUS20250314912A1%2FUS20250314912A1-20251009-D00000.png 156ms
+502 /api/image?url=https%3A%2F%2Fpatentimages.storage.googleapis.com%2F60x80%2FUS20250314912A1%2FUS20250314912A1-20251009-D00000.png 75ms
+200 /api/download?url=https%3A%2F%2Fpatentimages.storage.googleapis.com%2Fa0%2F47%2Fff%2F27e30e6844b07d%2FUS09939659-20180410-D00001.png&name=US9939659B2-fig2.png 182ms
+200 /api/image?url=https%3A%2F%2Fpatentimages.storage.googleapis.com%2F67%2F24%2Fc0%2F5a9125c2bcb0ef%2FUS09939659-20180410-D00000.png 21ms
+200 /api/search?q=goggles&limit=250&pd=1&seed=756771 14ms

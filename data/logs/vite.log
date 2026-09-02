@@ -21,3 +21,8 @@
 8:33:22 PM [vite] (client) hmr update /src/components/Editor.tsx
 8:41:05 PM [vite] (client) hmr update /src/components/Editor.tsx
 8:41:30 PM [vite] (client) hmr update /src/components/Editor.tsx
+3:00:11 PM [vite] (client) hmr update /src/App.tsx, /src/components/Viewer.tsx, /src/components/Editor.tsx, /src/components/Grid.tsx
+3:00:50 PM [vite] (client) hmr update /src/components/Panels.tsx
+3:00:50 PM [vite] (client) hmr update /src/App.tsx
+3:01:22 PM [vite] (client) hmr update /src/App.tsx
+3:01:23 PM [vite] (client) hmr update /src/styles.css

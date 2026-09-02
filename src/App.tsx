@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Item } from '../shared/types'
-import { ApiError, DEFAULT_QUERY, fetchStatus, paramsToQuery, queryToParams, search, type Query, type Status } from './lib/api'
+import { ApiError, DEFAULT_PATENT_QUERY, DEFAULT_QUERY, fetchStatus, paramsToQuery, queryToParams, search, searchPatents, type Query, type Status, type Tool } from './lib/api'
 import { boardStore, type Board } from './lib/boards'
 import { rankSimilar } from './lib/similarity'
 import { saveBlob, zipItems } from './lib/zip'
@@ -8,16 +8,22 @@ import { downloadFiles, type BatchProgress, type BatchSize } from './lib/downloa
 import Grid from './components/Grid'
 import Viewer from './components/Viewer'
 import ContactSheet from './components/ContactSheet'
-import { BoardsPanel, Filters, SaveToBoard, StatusPanel } from './components/Panels'
+import { BoardsPanel, Filters, PatentFilters, SaveToBoard, StatusPanel } from './components/Panels'
 
-const HINTS = ['chair', 'woman', 'helmet', 'embroidery', 'bicycle', 'goggles', 'poster', 'tool', 'sewing machine', 'packaging', 'lettering', 'ceramics', 'Japanese textile', 'Italian furniture', 'rome', 'map', 'spacecraft']
+const HINTS: Record<Tool, string[]> = {
+  museums: ['chair', 'woman', 'helmet', 'embroidery', 'bicycle', 'goggles', 'poster', 'tool', 'sewing machine', 'packaging', 'lettering', 'ceramics', 'Japanese textile', 'Italian furniture', 'rome', 'map', 'spacecraft'],
+  patents: ['goggles', 'sewing machine', 'bicycle', 'espresso machine', 'roller skate', 'diving suit', 'typewriter', 'kite', 'surfboard', 'toy robot', 'climbing', 'chair', 'synthesizer', 'camera'],
+}
 
 type View = { kind: 'search' } | { kind: 'board'; id: string } | { kind: 'similar'; base: Item } | { kind: 'sheet'; title: string; items: Item[] }
 
-function readUrl(): { query: Query; view: View } {
+function readUrl(): { query: Query; view: View; tool: Tool } {
   const p = new URLSearchParams(location.search)
   const m = location.hash.match(/^#\/board\/([a-z0-9]+)/)
-  return { query: paramsToQuery(p), view: m ? { kind: 'board', id: m[1] } : { kind: 'search' } }
+  const tool: Tool = location.pathname.startsWith('/patents') ? 'patents' : 'museums'
+  const query = paramsToQuery(p)
+  if (tool === 'patents' && !p.get('n') && !p.get('limit')) query.limit = 100
+  return { query, view: m ? { kind: 'board', id: m[1] } : { kind: 'search' }, tool }
 }
 
 function useBoards(): Board[] {
@@ -32,6 +38,7 @@ export default function App() {
   const [draft, setDraft] = useState<Query>(initial.query) // filters being edited
   const [text, setText] = useState(initial.query.q)
   const [view, setView] = useState<View>(initial.view)
+  const [tool, setTool] = useState<Tool>(initial.tool)
   const [items, setItems] = useState<Item[]>([])
   const [total, setTotal] = useState(0)
   const [perSource, setPerSource] = useState<Record<string, number>>({})
@@ -87,7 +94,7 @@ export default function App() {
         setError(null)
       }
       try {
-        const res = await search(q, off, seed, ctrl.signal)
+        const res = tool === 'patents' ? await searchPatents(q, off, ctrl.signal) : await search(q, off, seed, ctrl.signal)
         if (ctrl.signal.aborted) return
         setItems((prev) => {
           if (!more) return res.items
@@ -110,7 +117,7 @@ export default function App() {
         }
       }
     },
-    [offset, seed],
+    [offset, seed, tool],
   )
 
   useEffect(() => {
@@ -121,11 +128,19 @@ export default function App() {
     p.delete('pd')
     if (!query.pd) p.set('pd', '0')
     const qs = p.toString()
-    history.replaceState(null, '', (qs ? '?' + qs : location.pathname) + location.hash)
-    document.title = query.q ? `${query.q} — Open Collections` : 'Open Collections'
+    const path = tool === 'patents' ? '/patents' : '/'
+    history.replaceState(null, '', path + (qs ? '?' + qs : '') + location.hash)
+    document.title = (query.q ? `${query.q} — ` : '') + (tool === 'patents' ? 'Open Collections · Patents' : 'Open Collections')
+    if (tool === 'patents' && !query.q.trim()) {
+      setItems([])
+      setTotal(0)
+      setPerSource({})
+      setLoading(false)
+      return
+    }
     runSearch(query)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, view.kind])
+  }, [query, view.kind, tool])
 
   useEffect(() => {
     // hash routing for boards
@@ -133,6 +148,23 @@ export default function App() {
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
+
+  const switchTool = (t: Tool) => {
+    if (t === tool) return
+    setTool(t)
+    const base = t === 'patents' ? DEFAULT_PATENT_QUERY : DEFAULT_QUERY
+    const next = { ...base, q: text.trim() }
+    setDraft(next)
+    setQuery(next)
+    setItems([])
+    setSimilarItems(null)
+    setSelected(new Set())
+    setOffset(0)
+    if (view.kind !== 'search') {
+      location.hash = ''
+      setView({ kind: 'search' })
+    }
+  }
 
   const apply = (patch: Partial<Query>) => {
     const next = { ...draft, ...patch, q: text.trim() }
@@ -256,6 +288,10 @@ export default function App() {
     if (view.kind === 'similar') return similarProgress ? <>{similarProgress}</> : <>Visually similar to <b>{view.base.title}</b> among loaded results</>
     if (loading) return <><span className="spinner" /> Searching…</>
     if (error) return <span style={{ color: 'var(--danger)' }}>{error}</span>
+    if (tool === 'patents') {
+      if (!query.q) return 'Search patent drawings'
+      return <><b>{items.length.toLocaleString()}</b> of ~{total.toLocaleString()} patents · Google Patents</>
+    }
     if (!query.q && !items.length) return 'Search open museum collections'
     const n = Object.values(perSource).filter((v) => v > 0).length
     return <><b>{items.length.toLocaleString()}</b> of ~{total.toLocaleString()} results{n ? ` from ${n} sources` : ''}</>
@@ -265,10 +301,13 @@ export default function App() {
     <>
       <header className="top">
         <div className="brand">
-          <h1><a href="/" onClick={(e) => { e.preventDefault(); setText(''); apply({ ...DEFAULT_QUERY }) }}>Open Collections</a></h1>
-          <span className="sub">visual museum browser</span>
+          <h1><a href="/" onClick={(e) => { e.preventDefault(); setText(''); switchTool('museums'); if (tool === 'museums') apply({ ...DEFAULT_QUERY }) }}>Open Collections</a></h1>
+          <nav className="tools" aria-label="Tools">
+            <button className={tool === 'museums' ? 'active' : ''} onClick={() => switchTool('museums')}>Museums</button>
+            <button className={tool === 'patents' ? 'active' : ''} onClick={() => switchTool('patents')}>Patents</button>
+          </nav>
           <div className="right">
-            <span className="faint">{status ? `${status.total.toLocaleString()} objects · ${status.sources.length} sources` : ''}</span>
+            <span className="faint">{tool === 'patents' ? 'Google Patents · live' : status ? `${status.total.toLocaleString()} objects · ${status.sources.length} sources` : ''}</span>
           </div>
         </div>
         <form
@@ -278,13 +317,13 @@ export default function App() {
             apply({})
           }}
         >
-          <input type="search" value={text} onChange={(e) => setText(e.target.value)} placeholder="Search chairs, helmets, posters, embroidery, spacecraft…" autoFocus={!initial.query.q} aria-label="Search" />
+          <input type="search" value={text} onChange={(e) => setText(e.target.value)} placeholder={tool === 'patents' ? 'Search patent drawings: goggles, sewing machine, roller skate…' : 'Search chairs, helmets, posters, embroidery, spacecraft…'} autoFocus={!initial.query.q} aria-label="Search" />
           <button className="btn primary" type="submit">Search</button>
         </form>
         <div className="toolbar">
           <div className="status">{statusText()}</div>
           <div className="seg" title="Results per page">
-            {[100, 250, 500].map((n) => (
+            {(tool === 'patents' ? [50, 100] : [100, 250, 500]).map((n) => (
               <button key={n} className={query.limit === n ? 'active' : ''} onClick={() => apply({ limit: n })}>{n}</button>
             ))}
           </div>
@@ -292,11 +331,13 @@ export default function App() {
           <button className="btn" onClick={() => setPanel('boards')}>Boards{boards.length ? ` (${boards.length})` : ''}</button>
           <button className={'btn' + (selectMode ? ' active' : '')} onClick={() => { setSelectMode((v) => !v); if (selectMode) setSelected(new Set()) }}>Select</button>
           <button className="btn" onClick={() => { setDense((v) => { localStorage.setItem('oc:dense', v ? '0' : '1'); return !v }) }}>{dense ? 'Comfortable' : 'Dense grid'}</button>
-          <button className="btn" onClick={() => setPanel('sources')} title="Source status">
-            <span className="statusrow" style={{ padding: 0, border: 0, gap: 6 }}><span className={'dot' + (health === 'down' ? ' off' : '')} />Sources</span>
-          </button>
+          {tool === 'museums' && (
+            <button className="btn" onClick={() => setPanel('sources')} title="Source status">
+              <span className="statusrow" style={{ padding: 0, border: 0, gap: 6 }}><span className={'dot' + (health === 'down' ? ' off' : '')} />Sources</span>
+            </button>
+          )}
         </div>
-        {showFilters && (
+        {showFilters && tool === 'museums' && (
           <Filters
             draft={draft}
             sources={sources}
@@ -304,6 +345,18 @@ export default function App() {
             onApply={() => apply({})}
             onClear={() => {
               const cleared = { ...DEFAULT_QUERY, q: text.trim(), limit: draft.limit }
+              setDraft(cleared)
+              setQuery(cleared)
+            }}
+          />
+        )}
+        {showFilters && tool === 'patents' && (
+          <PatentFilters
+            draft={draft}
+            onChange={setDraft}
+            onApply={() => apply({})}
+            onClear={() => {
+              const cleared = { ...DEFAULT_PATENT_QUERY, q: text.trim(), limit: draft.limit }
               setDraft(cleared)
               setQuery(cleared)
             }}
@@ -327,15 +380,19 @@ export default function App() {
       )}
       {view.kind === 'search' && query.q && !loading && !error && items.length === 0 && (
         <div className="empty">
-          <p>No results for “{query.q}”{query.pd ? ' with public-domain filter' : ''}{query.from != null || query.to != null ? ' in that date range' : ''}.</p>
-          <p className="faint">Try a broader word, clear filters, or enable more sources.</p>
+          <p>No results for “{query.q}”{tool === 'museums' && query.pd ? ' with public-domain filter' : ''}{query.from != null || query.to != null ? ' in that date range' : ''}.</p>
+          <p className="faint">{tool === 'patents' ? 'Try a broader word or fewer filters.' : 'Try a broader word, clear filters, or enable more sources.'}</p>
         </div>
       )}
       {view.kind === 'search' && !query.q && items.length === 0 && !loading && (
         <div className="empty">
-          <p>Search across {status ? status.total.toLocaleString() : 'hundreds of thousands of'} open-access objects from museums, archives and 3D repositories.</p>
+          {tool === 'patents' ? (
+            <p>Browse patent drawings from Google Patents — an image-first view of a century of invention. Downloads, boards and the halftone editor all work here too.</p>
+          ) : (
+            <p>Search across {status ? status.total.toLocaleString() : 'hundreds of thousands of'} open-access objects from museums, archives and 3D repositories.</p>
+          )}
           <div className="hints">
-            {HINTS.map((h) => (
+            {HINTS[tool].map((h) => (
               <button key={h} onClick={() => { setText(h); setDraft({ ...draft, q: h }); setQuery({ ...draft, q: h }) }}>{h}</button>
             ))}
           </div>
@@ -354,7 +411,7 @@ export default function App() {
       />
       {view.kind === 'search' && items.length > 0 && !loading && (
         <div className="more">
-          {items.length < total && offset + query.limit < 1500 ? (
+          {items.length < total && (tool === 'patents' ? offset + query.limit < 1000 : offset + query.limit < 1500) ? (
             <button className="btn" disabled={loadingMore} onClick={() => runSearch(query, true)}>{loadingMore ? 'Loading…' : `Load ${query.limit} more`}</button>
           ) : (
             <span className="faint">{items.length < total ? 'Narrow the search to see more.' : 'End of results.'}</span>
