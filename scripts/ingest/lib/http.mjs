@@ -32,18 +32,29 @@ export async function fetchWithRetry(url, { retries = 4, timeoutMs = 30000, head
 }
 
 export async function getJson(url, opts = {}) {
-  const res = await fetchWithRetry(url, { ...opts, headers: { accept: 'application/json', ...(opts.headers || {}) } })
-  if (!res.ok) {
-    const err = new Error(`HTTP ${res.status} for ${url}`)
-    err.status = res.status
-    throw err
+  let lastErr
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetchWithRetry(url, { ...opts, headers: { accept: 'application/json', ...(opts.headers || {}) } })
+    if (!res.ok) {
+      const err = new Error(`HTTP ${res.status} for ${url}`)
+      err.status = res.status
+      throw err
+    }
+    let text
+    try {
+      text = await res.text() // body can terminate mid-stream; retry those too
+    } catch (e) {
+      lastErr = e
+      await sleep(1000 * (attempt + 1))
+      continue
+    }
+    try {
+      return JSON.parse(text)
+    } catch {
+      throw new Error(`Invalid JSON from ${url}: ${text.slice(0, 120)}`)
+    }
   }
-  const text = await res.text()
-  try {
-    return JSON.parse(text)
-  } catch {
-    throw new Error(`Invalid JSON from ${url}: ${text.slice(0, 120)}`)
-  }
+  throw lastErr
 }
 
 export async function getText(url, opts = {}) {

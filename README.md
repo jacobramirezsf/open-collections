@@ -45,6 +45,7 @@ See [docs/architecture.md](docs/architecture.md), [docs/sources.md](docs/sources
 | `cma` | Cleveland Museum of Art | Open Access API, paged | CC0 |
 | `nga` | National Gallery of Art | Open data CSVs (GitHub) + IIIF | CC0 (open-access images only) |
 | `rijks` | Rijksmuseum | OAI-PMH (`oai_dc`) from data.rijksmuseum.nl + IIIF | Public Domain Mark / CC0 only |
+| `smk` | SMK — National Gallery of Denmark | Open API, paged | Public domain / CC0 |
 | `wellcome` | Wellcome Collection | Official catalogue snapshot (works.json.gz) + IIIF | PDM / CC0 / CC BY (per work) |
 | `nih3d` | NIH 3D | Per-entry JSON API scan | Public domain / CC0 / CC BY (per model) |
 | `si` | Smithsonian (Cooper Hewitt, NMAH, SAAM, NPG, NASM, Freer, Hirshhorn, NMAAHC, NMAI, NMNH Anthropology, Postal Museum, Smithsonian 3D) | Open Access bulk metadata (public S3) + IDS images + Voyager 3D packages | CC0 |
@@ -85,6 +86,22 @@ Environment variables:
 Refreshing data = run the ingest scripts locally, `npm run index:build`, `npm run index:upload`,
 then redeploy (push to `main` or `vercel deploy --prod`).
 
+## Adding more collections
+
+Adding a museum = one adapter file in `scripts/ingest/sources/` returning the shared record shape,
+plus (optionally) a URL template in `shared/urls.ts` and a line in `api/_lib/sources.ts`. Evaluated
+keyed candidates, ready to build once a (free) key exists as an env var:
+
+| Source | Key signup | Env var | What it adds |
+| --- | --- | --- | --- |
+| Europeana | https://pro.europeana.eu/page/get-api (instant email) | `EUROPEANA_API_KEY` | Millions of records from EU institutions, rights per record |
+| Harvard Art Museums | https://harvardartmuseums.org/collections/api (instant email) | `HARVARD_API_KEY` | ~250k objects with images |
+| Paris Musées | https://www.parismusees.paris.fr/en/open-content (form) | `PARIS_MUSEES_TOKEN` | ~400k CC0 images (Carnavalet, Petit Palais…) |
+| Finnish National Gallery | https://www.kansallisgalleria.fi/en/api-sale (email) | `FNG_API_KEY` | ~40k CC0 works |
+
+No-key candidates still open: Library of Congress (needs a slow 20 req/min harvester), Getty
+(Linked Art/IIIF), Yale LUX, Wikimedia Commons curated categories.
+
 ## Known limitations
 
 - **The Met is partially indexed** (~73k of ~248k public-domain objects: a slow resumable API crawl —
@@ -96,6 +113,15 @@ then redeploy (push to `main` or `vercel deploy --prod`).
   250 MB function limit; the Rijksmuseum sample is a random public-domain subset of ~600k eligible works.
 - Rijksmuseum metadata is Dutch; common terms are translated for search but titles stay Dutch.
 - “Similar” compares only the results already loaded (client-side image signatures), not the whole index.
+
+## Accounts
+
+Optional accounts (username + password, no email) sync boards and favorites across browsers and
+devices. Sessions are 180-day HMAC-signed cookies (`SESSION_SECRET` env); passwords are salted
+scrypt hashes; user data is stored in the project's Vercel Blob store as immutable per-save
+snapshots (`userdata/{user}/{timestamp}.json` — overwriting a single blob is unsafe because Blob
+overwrites can take ~60 s to propagate). Signed-out use keeps everything in localStorage; signing
+in union-merges local and cloud. There is no email, so there is no password recovery.
 
 ## Boards, selection, downloads
 

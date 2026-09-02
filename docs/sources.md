@@ -56,6 +56,12 @@ Verified against the live endpoints on 2026-08-31. Each adapter lives in `script
 - Downloads must go through the site proxy `3d.nih.gov/api/submissions/{sid}/runs/{runId}/output-files/{fileId}` (S3 URLs are private); responses have no content-type, our `/api/download` fixes that by extension. Formats: STL, GLB, WRL, X3D.
 - Thumbnails use the same proxy (`*_thumb_*.jpg` output files).
 
+## smk — SMK, National Gallery of Denmark
+- `api.smk.dk/api/v1/art/search/?keys=*&filters=[has_image:true],[public_domain:true]&offset=N&rows=500` (no key, ~39k PD works).
+- IIIF: `iip-thumb.smk.dk/iiif/jp2/{jp2 id}/full/!600,600|!1600,1600|max/0/default.jpg` (max = native, multi-MB). `image_native` is an official download URL kept as a file.
+- Danish metadata; `DA_EN` map adds English search terms (like the Rijksmuseum adapter).
+- Record URL: `open.smk.dk/en/artwork/image/{object_number}`.
+
 ## Candidates evaluated but not (yet) included
 - **Library of Congress** — JSON API works without a key but is limited to 20 requests/min with hour-long blocks; rights are free text (“No known restrictions…”).
 - **Sketchfab / MorphoSource** — downloads require login.

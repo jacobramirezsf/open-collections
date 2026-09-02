@@ -123,6 +123,17 @@ export const TEMPLATES: Record<string, Template> = {
     recordUrl: (sid) => `https://www.rijksmuseum.nl/en/collection/${sid}`,
     rights: PD,
   },
+  smk: {
+    extract: ({ thumb }) => {
+      const m = (thumb || '').match(/^https:\/\/iip-thumb\.smk\.dk\/iiif\/jp2\/([^/]+)\/full\//)
+      return m ? m[1] : null
+    },
+    expand: (k) => ({
+      thumb: `https://iip-thumb.smk.dk/iiif/jp2/${k}/full/!600,600/0/default.jpg`,
+      image: `https://iip-thumb.smk.dk/iiif/jp2/${k}/full/!1600,1600/0/default.jpg`,
+      original: `https://iip-thumb.smk.dk/iiif/jp2/${k}/full/max/0/default.jpg`,
+    }),
+  },
   wellcome: {
     // The /thumbs/ endpoint confines over-sized requests to each image's largest available size;
     // the /image/ endpoint returns empty 200s beyond ~1024px, so full resolution isn't served.
