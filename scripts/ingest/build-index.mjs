@@ -14,7 +14,7 @@ const SHARD_LETTERS = ['a', 'b', 'c', 'd']
 const AVG_BYTES_PER_ROW = 590 // measured incl. FTS; used only for bin-packing
 // Per-source caps keep the bundled index under Vercel's 250 MB function limit. Override with
 // CAPS="rijks=60000,si=100000". Capped sources keep highlights first, then a stable pseudo-random subset.
-const DEFAULT_CAPS = { rijks: 240000, si: 210000, met: 260000, aic: 60000, nga: 65000, cma: 45000, wellcome: 80000, nih3d: 25000, metwiki: 260000 }
+const DEFAULT_CAPS = { europeana: 400000, rijks: 240000, si: 210000, met: 260000, aic: 60000, nga: 65000, cma: 45000, wellcome: 80000, nih3d: 25000, metwiki: 260000 }
 const CAPS = { ...DEFAULT_CAPS }
 for (const kv of (process.env.CAPS || '').split(',').filter(Boolean)) {
   const [k, v] = kv.split('=')

@@ -149,6 +149,18 @@ export const TEMPLATES: Record<string, Template> = {
       original: `https://iip-thumb.smk.dk/iiif/jp2/${k}/full/max/0/default.jpg`,
     }),
   },
+  europeana: {
+    // key = the provider's direct image URL; the thumbnail is Europeana's caching proxy over it
+    extract: ({ image, original }) => {
+      const u = original || image
+      return u && /^https?:\/\//.test(u) && !u.includes('"') ? u : null
+    },
+    expand: (k) => ({
+      thumb: `https://api.europeana.eu/thumbnail/v2/url.json?uri=${encodeURIComponent(k)}&type=IMAGE&size=w400`,
+      image: k,
+      original: k,
+    }),
+  },
   wellcome: {
     // The /thumbs/ endpoint confines over-sized requests to each image's largest available size;
     // the /image/ endpoint returns empty 200s beyond ~1024px, so full resolution isn't served.
