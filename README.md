@@ -47,6 +47,8 @@ See [docs/architecture.md](docs/architecture.md), [docs/sources.md](docs/sources
 | `rijks` | Rijksmuseum | OAI-PMH (`oai_dc`) from data.rijksmuseum.nl + IIIF | Public Domain Mark / CC0 only |
 | `harvard` | Harvard Art Museums | Official API (`HARVARD_API_KEY`, 2.5k req/day) | Not open license — labeled “verify rights”, hidden by the default PD filter |
 | `smk` | SMK — National Gallery of Denmark | Open API, paged | Public domain / CC0 |
+| `europeana` | Europeana (EU aggregator) | Search API (`EUROPEANA_API_KEY`), curated themes: art, photography, archaeology, industrial, fashion, music, manuscripts | PD / CC0 / CC BY / CC BY-SA per record |
+| `flickr` | Flickr Commons + Internet Archive Book Images | Flickr API (`FLICKR_API_KEY`), per-account pagination | No known restrictions / CC0 |
 | `wellcome` | Wellcome Collection | Official catalogue snapshot (works.json.gz) + IIIF | PDM / CC0 / CC BY (per work) |
 | `nih3d` | NIH 3D | Per-entry JSON API scan | Public domain / CC0 / CC BY (per model) |
 | `si` | Smithsonian (Cooper Hewitt, NMAH, SAAM, NPG, NASM, Freer, Hirshhorn, NMAAHC, NMAI, NMNH Anthropology, Postal Museum, Smithsonian 3D) | Open Access bulk metadata (public S3) + IDS images + Voyager 3D packages | CC0 |
@@ -95,7 +97,11 @@ keyed candidates, ready to build once a (free) key exists as an env var:
 
 | Source | Key signup | Env var | What it adds |
 | --- | --- | --- | --- |
-| Europeana | https://pro.europeana.eu/page/get-api (instant email) | `EUROPEANA_API_KEY` | Millions of records from EU institutions, rights per record |
+| DPLA | https://pro.dp.la/developers/policies#get-a-key (automated email) | `DPLA_API_KEY` | Tens of millions of US library/museum/archive records (the US Europeana) |
+| NYPL Digital Collections | https://api.repo.nypl.org/ (instant signup) | `NYPL_API_TOKEN` | ~900k PD images: menus, maps, prints, ephemera |
+| Biodiversity Heritage Library | https://www.biodiversitylibrary.org/getapikey.aspx (instant) | `BHL_API_KEY` | Historical botanical/zoological plates |
+| Trove (National Library of Australia) | https://trove.nla.gov.au/about/create-something/using-api | `TROVE_API_KEY` | Australian pictures/newspapers |
+| Digitalt Museum (Nordics) | https://dimu.org (key by email) | `DIMU_API_KEY` | Large Nordic CC0 collections |
 | Paris Musées | https://www.parismusees.paris.fr/en/open-content (form) | `PARIS_MUSEES_TOKEN` | ~400k CC0 images (Carnavalet, Petit Palais…) |
 | Finnish National Gallery | https://www.kansallisgalleria.fi/en/api-sale (email) | `FNG_API_KEY` | ~40k CC0 works |
 

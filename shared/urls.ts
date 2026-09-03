@@ -149,6 +149,21 @@ export const TEMPLATES: Record<string, Template> = {
       original: `https://iip-thumb.smk.dk/iiif/jp2/${k}/full/max/0/default.jpg`,
     }),
   },
+  flickr: {
+    // key = live.staticflickr.com path without extension for the 500px rendition; _b = 1024px.
+    // Originals use a different secret, so they stay in original_url verbatim when present.
+    extract: ({ thumb, image }) => {
+      const m = (thumb || '').match(/^https:\/\/live\.staticflickr\.com\/(.+)\.jpg$/)
+      if (!m) return null
+      if (image && image !== `https://live.staticflickr.com/${m[1]}_b.jpg` && image !== `https://live.staticflickr.com/${m[1]}.jpg`) return null
+      return m[1]
+    },
+    expand: (k) => ({
+      thumb: `https://live.staticflickr.com/${k}.jpg`,
+      image: `https://live.staticflickr.com/${k}_b.jpg`,
+      original: `https://live.staticflickr.com/${k}_b.jpg`,
+    }),
+  },
   europeana: {
     // key = the provider's direct image URL; the thumbnail is Europeana's caching proxy over it
     extract: ({ image, original }) => {

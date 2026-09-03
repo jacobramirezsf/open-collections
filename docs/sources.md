@@ -62,7 +62,19 @@ Verified against the live endpoints on 2026-08-31. Each adapter lives in `script
 - Danish metadata; `DA_EN` map adds English search terms (like the Rijksmuseum adapter).
 - Record URL: `open.smk.dk/en/artwork/image/{object_number}`.
 
+## europeana — Europeana
+- Search API with cursor paging (`EUROPEANA_API_KEY`), 100 rows/request. 21M open images exist but are dominated by natural-history specimen scans, so the adapter harvests curated `collection:` themes (art 160k, photography 80k, archaeology 45k, industrial 40k, fashion 40k, music 20k, manuscript 15k) with per-provider caps (diversity) and excludes providers indexed directly (Rijksmuseum, SMK, Wellcome).
+- Thumbnails via Europeana's caching proxy (`api.europeana.eu/thumbnail/v2/url.json?uri=…&size=w400`); view/original = the provider's `edmIsShownBy` URL (variable hosts; the viewer's fallback chain handles failures).
+- Rights per record (PD Mark / CC0 / CC BY / CC BY-SA via `reusability=open`); provider shown in the rights label. Titles are often in the source language.
+
+## flickr — Flickr Commons + Internet Archive Book Images
+- `flickr.people.getPublicPhotos` pages deep without the ~4,000-result cap that `flickr.photos.search` has — plain resumable pagination even on the 5.3M-photo IA account. Date-window partitioning was tried first and abandoned: wide-window `photos.search` probes on huge accounts hang for minutes.
+- IA Book Images (CC0 plates from scanned books) capped at 150k; titles are rewritten from “Image from page N of …” to `Book title (year) — p. N`, which also yields a search year. Commons institutions capped at 10k each (British Library and Library of Congress 40k, NASA 20k; Smithsonian skipped — indexed directly).
+- Licenses kept: 7 (no known copyright restrictions), 9 (CC0), 10 (PD mark).
+- Image sizes: `live.staticflickr.com/{path}.jpg` = 500px, `_b` = 1024px, `url_o` (when present) stored as the original.
+
 ## Candidates evaluated but not (yet) included
 - **Library of Congress** — JSON API works without a key but is limited to 20 requests/min with hour-long blocks; rights are free text (“No known restrictions…”).
 - **Sketchfab / MorphoSource** — downloads require login.
+- **British Museum** — no public JSON API (the old SPARQL endpoint was retired); collection pages sit behind Cloudflare and images are CC BY-NC-SA (non-commercial). Only viable route would be the subset photographed/uploaded to Wikimedia Commons.
 - **threedscans.com** — direct STL zips but no license statement on the site.

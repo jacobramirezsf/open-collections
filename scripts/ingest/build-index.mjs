@@ -41,25 +41,29 @@ for (const f of stagingFiles) {
   const c = db.prepare("SELECT COUNT(*) c FROM items WHERE title IS NOT NULL AND title != ''").get().c
   db.close()
   const cap = CAPS[srcKey] ?? 1e9
-  sourcesInfo.push({ file: f, srcKey, rows: Math.min(c, cap) })
+  const rows = Math.min(c, cap)
+  // estimate final bytes from the staging file's actual density (compaction + FTS ≈ 0.8×)
+  const stBytes = fs.statSync(path.join(STAGING_DIR, f)).size
+  const perRow = c ? Math.min(1400, Math.max(420, (stBytes / c) * 0.8)) : 590
+  sourcesInfo.push({ file: f, srcKey, rows, bytes: Math.round(rows * perRow) })
 }
 // met + metwiki share the met:{id} namespace — they must live in the SAME shard so INSERT OR IGNORE
 // dedupes them (metwiki fills gaps until the API crawl overwrites). Merge them into one pack unit.
 const metIdx = sourcesInfo.findIndex((s) => s.srcKey === 'met')
 const wikiIdx = sourcesInfo.findIndex((s) => s.srcKey === 'metwiki')
 if (metIdx >= 0 && wikiIdx >= 0) {
-  sourcesInfo[metIdx] = { group: [sourcesInfo[metIdx], sourcesInfo[wikiIdx]], srcKey: 'met+metwiki', rows: sourcesInfo[metIdx].rows + sourcesInfo[wikiIdx].rows }
+  sourcesInfo[metIdx] = { group: [sourcesInfo[metIdx], sourcesInfo[wikiIdx]], srcKey: 'met+metwiki', rows: sourcesInfo[metIdx].rows + sourcesInfo[wikiIdx].rows, bytes: sourcesInfo[metIdx].bytes + sourcesInfo[wikiIdx].bytes }
   sourcesInfo.splice(wikiIdx, 1)
 }
-sourcesInfo.sort((x, y) => y.rows - x.rows)
-const nShards = Math.max(1, Math.min(SHARD_LETTERS.length, Math.ceil(sourcesInfo.reduce((a, s) => a + s.rows, 0) * AVG_BYTES_PER_ROW / (SHARD_TARGET_MB * 1e6))))
+sourcesInfo.sort((x, y) => y.bytes - x.bytes)
+const nShards = Math.max(1, Math.min(SHARD_LETTERS.length, Math.ceil(sourcesInfo.reduce((a, s) => a + s.bytes, 0) / (SHARD_TARGET_MB * 1e6))))
 const shards = SHARD_LETTERS.slice(0, nShards).map((letter) => ({ letter, rows: 0, files: [] }))
 for (const src of sourcesInfo) {
   const lightest = shards.reduce((a, b) => (b.rows < a.rows ? b : a))
   for (const unit of src.group ?? [src]) lightest.files.push(unit)
-  lightest.rows += src.rows
+  lightest.rows += src.bytes // pack by estimated bytes
 }
-console.log(`building ${nShards} shard(s): ` + shards.map((sh) => `${sh.letter}=[${sh.files.map((f) => f.srcKey).join(',')}] ~${Math.round((sh.rows * AVG_BYTES_PER_ROW) / 1e6)}MB`).join('  '))
+console.log(`building ${nShards} shard(s): ` + shards.map((sh) => `${sh.letter}=[${sh.files.map((f) => f.srcKey).join(',')}] ~${Math.round(sh.rows / 1e6)}MB`).join('  '))
 
 const builtAt = new Date().toISOString()
 const manifest = { builtAt, shards: {} }
