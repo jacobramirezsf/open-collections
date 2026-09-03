@@ -10,7 +10,7 @@ import { ROOT, STAGING_DIR } from './lib/store.mjs'
 import { compactImages, defaultRecordUrl, defaultRights } from '../../shared/urls.ts'
 
 const SHARD_TARGET_MB = Number(process.env.SHARD_TARGET_MB || 360) // keep well under the 500 MB /tmp per function
-const SHARD_LETTERS = ['a', 'b', 'c', 'd']
+const SHARD_LETTERS = ['a', 'b', 'c', 'd', 'e', 'f']
 const AVG_BYTES_PER_ROW = 590 // measured incl. FTS; used only for bin-packing
 // Per-source caps keep the bundled index under Vercel's 250 MB function limit. Override with
 // CAPS="rijks=60000,si=100000". Capped sources keep highlights first, then a stable pseudo-random subset.

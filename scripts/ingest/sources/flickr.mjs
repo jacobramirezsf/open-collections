@@ -18,6 +18,10 @@ const INST_CAP_OVERRIDES = {
   '44494372@N05': 20000, // NASA Commons
 }
 const SKIP_INSTITUTIONS = new Set(['25053835@N03']) // Smithsonian — already indexed directly
+// Non-Commons accounts worth harvesting (license-filtered like everything else)
+const EXTRA_ACCOUNTS = [
+  { nsid: '61021753@N02', name: 'Biodiversity Heritage Library', cap: 60000, isIA: false, objectType: 'Book illustration' },
+]
 
 const OK_LICENSES = new Set(['7', '9', '10']) // no known restrictions, CC0, PD mark
 const EXTRAS = 'url_m,url_l,url_o,owner_name,license,date_upload,date_taken,description'
@@ -25,7 +29,7 @@ const EXTRAS = 'url_m,url_l,url_o,owner_name,license,date_upload,date_taken,desc
 const api = (method, params, apikey) =>
   getJson(`https://api.flickr.com/services/rest/?method=${method}&api_key=${apikey}&format=json&nojsoncallback=1&${new URLSearchParams(params)}`, { timeoutMs: 45000, retries: 4 })
 
-export function normalize(p, ownerName, isIA) {
+export function normalize(p, ownerName, isIA, objectTypeOverride) {
   if (!OK_LICENSES.has(String(p.license))) return null
   const m = p.url_m
   if (!m) return null
@@ -59,7 +63,7 @@ export function normalize(p, ownerName, isIA) {
     dateDisplay: yearsGuess ? String(yearsGuess[0]) : null,
     yearStart: yearsGuess?.[0] ?? null,
     yearEnd: yearsGuess?.[1] ?? null,
-    objectType: isIA ? 'Book illustration' : 'Photograph',
+    objectType: objectTypeOverride || (isIA ? 'Book illustration' : 'Photograph'),
     medium: null,
     culture: null,
     place: null,
@@ -79,7 +83,7 @@ export function normalize(p, ownerName, isIA) {
 
 // flickr.people.getPublicPhotos pages deep without the ~4k cap that photos.search has, so plain
 // resumable pagination works even for the 5M-photo Internet Archive account.
-async function harvestAccount(store, apikey, nsid, ownerName, cap, isIA, log) {
+async function harvestAccount(store, apikey, nsid, ownerName, cap, isIA, log, objectTypeOverride) {
   const progKey = 'fl:' + nsid
   const state = store.getProgress(progKey) || { n: 0, page: 1, done: false }
   if (state.done || state.n >= cap) return state.n
@@ -99,7 +103,7 @@ async function harvestAccount(store, apikey, nsid, ownerName, cap, isIA, log) {
     const photos = res.photos?.photo || []
     for (const p of photos) {
       if (state.n >= cap) break
-      const rec = normalize(p, ownerName, isIA)
+      const rec = normalize(p, ownerName, isIA, objectTypeOverride)
       if (rec && store.put(rec)) state.n++
     }
     if (state.page % 40 === 0) log(`flickr/${ownerName}: page ${state.page}/${res.photos?.pages}, ${state.n} kept`)
@@ -130,6 +134,14 @@ export async function ingest(store, { log }) {
       await harvestAccount(store, apikey, i.nsid, i.name, cap, false, log)
     } catch (e) {
       log(`flickr/${i.name}: failed (${e.message}); continuing`)
+    }
+  }
+  // 3) extra non-Commons accounts
+  for (const a of EXTRA_ACCOUNTS) {
+    try {
+      await harvestAccount(store, apikey, a.nsid, a.name, a.cap, a.isIA, log, a.objectType)
+    } catch (e) {
+      log(`flickr/${a.name}: failed (${e.message}); continuing`)
     }
   }
   log(`flickr: total staged ${store.count(key)}`)

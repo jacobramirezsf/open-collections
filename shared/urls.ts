@@ -149,6 +149,17 @@ export const TEMPLATES: Record<string, Template> = {
       original: `https://iip-thumb.smk.dk/iiif/jp2/${k}/full/max/0/default.jpg`,
     }),
   },
+  nypl: {
+    extract: ({ thumb }) => {
+      const m = (thumb || '').match(/^https:\/\/images\.nypl\.org\/index\.php\?id=([A-Za-z0-9_-]+)&t=r$/)
+      return m ? m[1] : null
+    },
+    expand: (k) => ({
+      thumb: `https://images.nypl.org/index.php?id=${k}&t=r`,
+      image: `https://images.nypl.org/index.php?id=${k}&t=q`,
+      original: `https://images.nypl.org/index.php?id=${k}&t=g`,
+    }),
+  },
   flickr: {
     // key = live.staticflickr.com path without extension for the 500px rendition; _b = 1024px.
     // Originals use a different secret, so they stay in original_url verbatim when present.

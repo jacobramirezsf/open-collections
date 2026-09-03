@@ -1,0 +1,34 @@
+building 4 shard(s): a=[europeana] ~370MB  b=[flickr] ~359MB  c=[si,harvard,cma,aic,smk] ~365MB  d=[rijks,met,metwiki,wellcome,nga,nih3d,nasa3d] ~356MB
+  [a] + europeana: 359130 rows (359130 compacted)
+shard a: 359130 items, 294.9 MB → /Users/Jacob/Documents/Makery/projects/open-collections/data/index-a.sqlite
+    europeana   359130
+  [b] + flickr: 522798 rows (0 compacted)
+shard b: 522798 items, 405.6 MB → /Users/Jacob/Documents/Makery/projects/open-collections/data/index-b.sqlite
+    flickr      522798
+  [c] + si: 114520 rows (114411 compacted)
+  [c] + harvard: 167205 rows (166906 compacted)
+  [c] + cma: 41409 rows (41409 compacted)
+  [c] + aic: 59042 rows (59042 compacted)
+  [c] + smk: 39461 rows (28365 compacted)
+shard c: 421637 items, 270.0 MB → /Users/Jacob/Documents/Makery/projects/open-collections/data/index-c.sqlite
+    harvard     167205
+    si          114520
+    aic          59042
+    cma          41409
+    smk          39461
+  [d] + rijks: 230592 rows (230592 compacted)
+  [d] + met: 72939 rows (72939 compacted)
+  [d] + metwiki: 32768 rows (32768 compacted)
+  [d] + wellcome: 75048 rows (75048 compacted)
+  [d] + nga: 63389 rows (63389 compacted)
+  [d] + nih3d: 14178 rows (0 compacted)
+  [d] + nasa3d: 326 rows (0 compacted)
+shard d: 482880 items, 253.6 MB → /Users/Jacob/Documents/Makery/projects/open-collections/data/index-d.sqlite
+    rijks       230592
+    met          99347
+    wellcome     75048
+    nga          63389
+    nih3d        14178
+    nasa3d         326
+manifest → shared/shards.json (commit this file: the API routes by it)
+uploading index-a.sqlite (309 MB)…

@@ -1,5 +1,5 @@
-// Halftone editor: item image → optional remove.bg cutout → halftone screen → hi-res PNG or vector
-// SVG export (screenprint-ready). The preview is tuned at ≤1800px for interactivity; exports
+// Image editor: background removal (remove.bg), halftone screening (client-side, hi-res PNG or
+// vector SVG export), and AI vectorization (QuiverAI image→SVG). The preview is tuned at ≤1800px for interactivity; exports
 // re-render the same screen from the full-resolution source (see src/lib/halftone.ts).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Item } from '../../shared/types'
@@ -46,6 +46,7 @@ export default function Editor({ item, onClose }: Props) {
   const [busy, setBusy] = useState<string | null>('Loading image…')
   const [error, setError] = useState<string | null>(null)
   const [exportScale, setExportScale] = useState(1) // relative to full source
+  const [vector, setVector] = useState<{ svg: string; url: string; sandbox: boolean } | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const renderTimer = useRef<number>(0)
 
@@ -97,6 +98,34 @@ export default function Editor({ item, onClose }: Props) {
       ctx.drawImage(out, 0, 0)
     }, 60)
   }, [preview, params])
+
+  const vectorize = useCallback(async () => {
+    if (!full) return
+    setBusy('Vectorizing with QuiverAI… (can take ~30s)')
+    setError(null)
+    try {
+      // untouched original → let the server pass the image URL; edited (cutout) → send the pixels
+      let body: string
+      if (!cutoutApplied) {
+        body = JSON.stringify({ id: item.id })
+      } else {
+        const c = toCanvas(full, 1024)
+        body = JSON.stringify({ image: c.toDataURL('image/png') })
+      }
+      const res = await fetch('/api/vectorize', { method: 'POST', headers: { 'content-type': 'application/json' }, body })
+      const payload = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(payload?.error || `Vectorization failed (${res.status})`)
+      const url = URL.createObjectURL(new Blob([payload.svg], { type: 'image/svg+xml' }))
+      setVector((old) => {
+        if (old) URL.revokeObjectURL(old.url)
+        return { svg: payload.svg, url, sandbox: !!payload.sandbox }
+      })
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }, [full, cutoutApplied, item.id])
 
   const removeBg = useCallback(async () => {
     setBusy('Removing background…')
@@ -205,16 +234,21 @@ export default function Editor({ item, onClose }: Props) {
     <div className="viewer editor" role="dialog" aria-modal="true">
       <div className="vtop">
         <button className="btn" onClick={onClose}>← Back to item</button>
-        <strong style={{ fontSize: 13 }}>Halftone editor</strong>
+        <strong style={{ fontSize: 13 }}>Edit</strong>
         <span className="faint" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
         <span style={{ flex: 1 }} />
-        <button className="btn primary" onClick={exportPng} disabled={!full || !!busy}>Download PNG</button>
+        {vector ? (
+          <button className="btn primary" onClick={() => saveBlob(new Blob([vector.svg], { type: 'image/svg+xml' }), `${baseName.replace(/-(halftone|cutout|edit)$/, '')}-vector.svg`)}>Download SVG</button>
+        ) : (
+          <button className="btn primary" onClick={exportPng} disabled={!full || !!busy}>Download PNG</button>
+        )}
       </div>
       <div className="vbody">
         <div className="stage" style={params.paper === 'transparent' ? checker : undefined}>
           {busy && <div className="ph" style={{ position: 'absolute', zIndex: 2 }}>{busy}</div>}
           {error && !busy && !full && <div className="ph" style={{ color: 'var(--danger)' }}>{error}</div>}
-          <canvas ref={canvasRef} style={{ maxWidth: '100%', maxHeight: '100%', display: full ? 'block' : 'none', opacity: busy ? 0.4 : 1 }} />
+          {vector && <img src={vector.url} alt="Vectorized" style={{ maxWidth: '100%', maxHeight: '100%', opacity: busy ? 0.4 : 1 }} />}
+          <canvas ref={canvasRef} style={{ maxWidth: '100%', maxHeight: '100%', display: full && !vector ? 'block' : 'none', opacity: busy ? 0.4 : 1 }} />
         </div>
         <div className="info">
           {error && full && <p style={{ color: 'var(--danger)', marginTop: 0, fontSize: 13 }}>{error}</p>}
@@ -231,7 +265,29 @@ export default function Editor({ item, onClose }: Props) {
             {full ? `Source ${full.width} × ${full.height}px. ` : ''}Background removal uses remove.bg (rate-limited; spends credits).
           </p>
 
-          <h3>Halftone</h3>
+          <h3>Vectorize (AI)</h3>
+          {!vector ? (
+            <>
+              <button className="btn" onClick={vectorize} disabled={!full || !!busy}>Vectorize with QuiverAI</button>
+              <p className="faint" style={{ fontSize: 12, margin: '6px 0 0' }}>
+                Redraws the {cutoutApplied ? 'cutout' : 'image'} as clean, editable SVG shapes (rate-limited; spends credits).
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="actions">
+                <button className="btn primary" onClick={() => saveBlob(new Blob([vector.svg], { type: 'image/svg+xml' }), `${baseName.replace(/-(halftone|cutout|edit)$/, '')}-vector.svg`)}>
+                  Download SVG
+                </button>
+                <button className="btn" onClick={() => { URL.revokeObjectURL(vector.url); setVector(null) }}>Back to bitmap</button>
+              </div>
+              <p className="faint" style={{ fontSize: 12, margin: '6px 0 0' }}>
+                {vector.sandbox ? 'Test-key result (watermarked mock) — add a live QuiverAI key for real output.' : 'AI-drawn vector — editable shapes, scales to any size.'}
+              </p>
+            </>
+          )}
+
+          <h3 style={{ opacity: vector ? 0.45 : 1 }}>Halftone</h3>
           <label className="check" style={{ marginBottom: 8 }}>
             <input type="checkbox" checked={params.on} onChange={(e) => set('on', e.target.checked)} /> Enable halftone
           </label>

@@ -127,7 +127,7 @@ export default function Viewer({ items, index, onClose, onNav, onSave, onSimilar
               {isFavorite(item.id) ? '♥ Favorited' : '♡ Favorite'}
             </button>
             <button className="btn" onClick={(e) => onSave(item, e.currentTarget)}>{isSaved(item.id) ? 'Saved ✓' : 'Save to board'}</button>
-            {!is3d && <button className="btn" onClick={() => setEditing(true)}>Halftone</button>}
+            {!is3d && <button className="btn" onClick={() => setEditing(true)}>Edit</button>}
             <a className="btn" href={item.sourceUrl} target="_blank" rel="noopener noreferrer">Original record ↗</a>
             {!is3d && <button className="btn" onClick={() => onSimilar(item)}>Similar</button>}
           </div>

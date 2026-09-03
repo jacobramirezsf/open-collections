@@ -1,31 +1,9 @@
 
-  VITE v7.3.6  ready in 117 ms
+  VITE v7.3.6  ready in 175 ms
 
   ➜  Local:   http://localhost:5180/
   ➜  Network: use --host to expose
-9:21:04 PM [vite] (client) hmr update /src/styles.css
-9:21:04 PM [vite] (client) hmr update /src/components/Viewer.tsx
-9:21:04 PM [vite] (client) hmr update /src/styles.css
-9:21:18 PM [vite] (client) page reload index.html
-9:23:23 PM [vite] (client) hmr update /src/components/Grid.tsx
-9:36:30 PM [vite] (client) hmr update /src/components/Viewer.tsx
-9:36:30 PM [vite] (client) hmr update /src/styles.css
-9:56:18 PM [vite] (client) hmr update /src/components/Grid.tsx
-9:57:03 PM [vite] (client) hmr update /src/App.tsx, /src/components/Viewer.tsx
-9:57:29 PM [vite] (client) hmr update /src/components/Viewer.tsx
-9:57:29 PM [vite] (client) hmr update /src/App.tsx, /src/components/Viewer.tsx
-8:07:35 PM [vite] (client) hmr update /src/components/Viewer.tsx
-8:07:35 PM [vite] (client) hmr update /src/styles.css
-8:20:13 PM [vite] (client) hmr update /src/App.tsx, /src/components/Viewer.tsx, /src/components/Editor.tsx
-8:20:37 PM [vite] (client) hmr update /src/App.tsx
-8:33:22 PM [vite] (client) hmr update /src/components/Editor.tsx
-8:41:05 PM [vite] (client) hmr update /src/components/Editor.tsx
-8:41:30 PM [vite] (client) hmr update /src/components/Editor.tsx
-3:00:11 PM [vite] (client) hmr update /src/App.tsx, /src/components/Viewer.tsx, /src/components/Editor.tsx, /src/components/Grid.tsx
-3:00:50 PM [vite] (client) hmr update /src/components/Panels.tsx
-3:00:50 PM [vite] (client) hmr update /src/App.tsx
-3:01:22 PM [vite] (client) hmr update /src/App.tsx
-3:01:23 PM [vite] (client) hmr update /src/styles.css
-3:12:20 PM [vite] .env.local changed, restarting server...
-3:12:20 PM [vite] (client) Re-optimizing dependencies because lockfile has changed
-3:12:20 PM [vite] server restarted.
+10:16:51 PM [vite] .env.local changed, restarting server...
+10:16:51 PM [vite] server restarted.
+10:24:22 PM [vite] .env.local changed, restarting server...
+10:24:22 PM [vite] server restarted.
