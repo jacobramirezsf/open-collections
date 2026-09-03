@@ -1,21 +1,3 @@
 api dev server http://localhost:3999
-501 /api/vectorize 2ms
-200 /api/auth 1ms
-200 /api/auth 0ms
-200 /api/shard-a?op=status 2ms
-200 /api/shard-b?op=status 1ms
-200 /api/shard-d?op=status 1ms
-200 /api/shard-c?op=status 1ms
-200 /api/status 44ms
-200 /api/shard-d?q=teapot&limit=250&sources=met%2Cnga&pd=1&seed=357769&offset=0 110ms
-200 /api/search?q=teapot&limit=250&sources=met%2Cnga&pd=1&seed=357769 134ms
-200 /api/shard-d?q=teapot&limit=250&sources=met%2Cnga&pd=1&seed=357769&offset=0 5ms
-200 /api/search?q=teapot&limit=250&sources=met%2Cnga&pd=1&seed=357769 139ms
-200 /api/shard-a?op=status 1ms
-200 /api/shard-b?op=status 0ms
-200 /api/shard-c?op=status 1ms
-200 /api/shard-d?op=status 1ms
-200 /api/status 11ms
-200 /api/shard-d?op=item&id=met%3A20144 1ms
-200 /api/image?id=met%3A20144&size=orig 166ms
-501 /api/vectorize 0ms
+200 /api/shard-d?op=item&id=met%3A20144 8ms
+502 /api/vectorize 3067ms

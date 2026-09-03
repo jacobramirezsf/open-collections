@@ -1,27 +1,30 @@
 {
-  "builtAt": "2026-09-03T05:10:37.114Z",
+  "builtAt": "2026-09-03T05:41:06.090Z",
   "shards": {
     "a": [
-      "europeana"
+      "flickr"
     ],
     "b": [
-      "flickr"
+      "europeana"
     ],
     "c": [
       "si",
-      "harvard",
       "cma",
-      "aic",
-      "smk"
-    ],
-    "d": [
-      "rijks",
-      "met",
-      "metwiki",
       "wellcome",
       "nga",
-      "nih3d",
       "nasa3d"
+    ],
+    "d": [
+      "met",
+      "metwiki",
+      "nypl",
+      "aic",
+      "nih3d"
+    ],
+    "e": [
+      "rijks",
+      "harvard",
+      "smk"
     ]
   }
 }

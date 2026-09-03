@@ -7,7 +7,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const dataDir = path.resolve(import.meta.dirname, '../data')
-const shards = fs.readdirSync(dataDir).filter((f) => /^index-[a-d]\.sqlite$/.test(f)).sort()
+const only = process.argv.slice(2).filter((a) => /^[a-f]$/.test(a))
+const shards = fs.readdirSync(dataDir).filter((f) => /^index-[a-f]\.sqlite$/.test(f)).filter((f) => !only.length || only.includes(f[6])).sort()
 if (!shards.length) {
   console.error('No data/index-*.sqlite shards. Run `npm run index:build` first.')
   process.exit(1)
@@ -23,8 +24,21 @@ const repo = run(['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwn
 for (const f of shards) {
   const full = path.join(dataDir, f)
   console.log(`uploading ${f} (${(fs.statSync(full).size / 1e6).toFixed(0)} MB)…`)
-  execFileSync('gh', ['release', 'upload', TAG, full, '--clobber'], { stdio: 'inherit' })
-  const letter = f.match(/^index-([a-d])/)[1].toUpperCase()
+  let ok = false
+  for (let attempt = 1; attempt <= 4 && !ok; attempt++) {
+    try {
+      execFileSync('gh', ['release', 'upload', TAG, full, '--clobber'], { stdio: 'inherit' })
+      ok = true
+    } catch (e) {
+      console.log(`  attempt ${attempt} failed (${e.message.split('\n')[0]}); retrying in 20s`)
+      await new Promise((r) => setTimeout(r, 20000))
+    }
+  }
+  if (!ok) {
+    console.error(`giving up on ${f}`)
+    process.exit(1)
+  }
+  const letter = f.match(/^index-([a-f])/)[1].toUpperCase()
   console.log(`  INDEX_URL_${letter} = https://github.com/${repo}/releases/download/${TAG}/${f}`)
 }
 console.log('Commit shared/shards.json if it changed, then redeploy (git push).')

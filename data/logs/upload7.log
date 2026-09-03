@@ -1,0 +1,16 @@
+uploading index-c.sqlite (184 MB)…
+  INDEX_URL_C = https://github.com/jacobramirezsf/open-collections/releases/download/index-latest/index-c.sqlite
+uploading index-d.sqlite (223 MB)…
+  INDEX_URL_D = https://github.com/jacobramirezsf/open-collections/releases/download/index-latest/index-d.sqlite
+uploading index-e.sqlite (234 MB)…
+file:///Users/Jacob/Documents/Makery/projects/open-collections/scripts/upload-index.mjs:41
+  const letter = f.match(/^index-([a-d])/)[1].toUpperCase()
+                                          ^
+
+TypeError: Cannot read properties of null (reading '1')
+    at file:///Users/Jacob/Documents/Makery/projects/open-collections/scripts/upload-index.mjs:41:43
+    at ModuleJob.run (node:internal/modules/esm/module_job:430:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:639:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v25.8.0

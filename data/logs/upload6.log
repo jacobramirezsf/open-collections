@@ -1,0 +1,28 @@
+uploading index-a.sqlite (430 MB)…
+  INDEX_URL_A = https://github.com/jacobramirezsf/open-collections/releases/download/index-latest/index-a.sqlite
+uploading index-b.sqlite (299 MB)…
+  INDEX_URL_B = https://github.com/jacobramirezsf/open-collections/releases/download/index-latest/index-b.sqlite
+uploading index-c.sqlite (184 MB)…
+Delete "https://api.github.com/repos/jacobramirezsf/open-collections/releases/assets/542252463": read tcp 10.0.0.250:63677->140.82.116.5:443: read: connection reset by peer
+node:internal/errors:998
+  const err = new Error(message);
+              ^
+
+Error: Command failed: gh release upload index-latest /Users/Jacob/Documents/Makery/projects/open-collections/data/index-c.sqlite --clobber
+    at genericNodeError (node:internal/errors:998:15)
+    at wrappedFn (node:internal/errors:543:14)
+    at checkExecSyncError (node:child_process:925:11)
+    at execFileSync (node:child_process:961:15)
+    at file:///Users/Jacob/Documents/Makery/projects/open-collections/scripts/upload-index.mjs:26:3
+    at ModuleJob.run (node:internal/modules/esm/module_job:430:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:639:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+  status: 1,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 93523,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v25.8.0
