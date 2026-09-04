@@ -641,8 +641,8 @@ export default function Editor({ item, onClose }: Props) {
                     <div>
                       <span className="label">Paper mode</span>
                       <div className="seg">
-                        <button type="button" className={sheetMode === 'ink' ? 'active' : ''} onClick={() => setSheetMode('ink')} title="Artwork multiplies into the paper like ink on stock">ink</button>
-                        <button type="button" className={sheetMode === 'behind' ? 'active' : ''} onClick={() => setSheetMode('behind')} title="Paper sits behind the artwork as a background">behind</button>
+                        <button type="button" className={sheetMode === 'ink' ? 'active' : ''} onClick={() => setSheetMode('ink')} title="Artwork multiplies into the paper like ink on stock">overlay</button>
+                        <button type="button" className={sheetMode === 'behind' ? 'active' : ''} onClick={() => setSheetMode('behind')} title="Paper sits behind the artwork as a background">background</button>
                       </div>
                     </div>
                   )}
