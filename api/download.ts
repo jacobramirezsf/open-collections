@@ -21,8 +21,20 @@ export default handler(async (req: Request) => {
   let url: string | null = null
   let ext: string | null = null
   if (which === 'image') {
-    url = size === 'view' ? item.imageUrl || item.originalImageUrl || item.thumbnailUrl : item.originalImageUrl || item.imageUrl || item.thumbnailUrl
-  } else {
+    // Aggregators (Europeana) point at provider-hosted originals that are often unreachable; cascade
+    // down the renditions server-side so the user gets the best fetchable version.
+    const order = size === 'view' ? [item.imageUrl, item.originalImageUrl, item.thumbnailUrl] : [item.originalImageUrl, item.imageUrl, item.thumbnailUrl]
+    const candidates = [...new Set(order.filter(Boolean))] as string[]
+    for (let i = 0; i < candidates.length; i++) {
+      const isLast = i === candidates.length - 1
+      const res = await proxyFetch(candidates[i], { download: downloadName(item, candidates[i], extFromUrl(candidates[i])), range: req.headers.get('range'), redirectOnBlock: isLast, timeoutMs: 25000 })
+      if (res.ok || res.status === 206 || res.status === 302) {
+        if (res.ok || res.status === 206 || isLast) return res
+      }
+    }
+    return error('The source image could not be fetched — try the original record.', 502)
+  }
+  {
     const f = item.files[Number(which)]
     if (f) {
       url = f.url

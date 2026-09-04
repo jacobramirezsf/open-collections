@@ -3,7 +3,7 @@
   "functions": {
     "api/*.ts": { "maxDuration": 60 }
   },
-  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
+  "rewrites": [{ "source": "/((?!api/|assets/|paper/).*)", "destination": "/index.html" }],
   "headers": [
     { "source": "/api/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, s-maxage=3600, stale-while-revalidate=86400" }] }
   ]

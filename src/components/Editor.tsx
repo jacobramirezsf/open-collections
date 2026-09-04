@@ -196,13 +196,21 @@ export default function Editor({ item, onClose }: Props) {
       return
     }
     setStack((s) => {
-      if (s.includes(k)) return s.filter((x) => x !== k)
+      const label = (x: EffectKind) => (x === 'halftone' ? 'Halftone' : effectDef(x).label)
+      if (s.includes(k)) {
+        const next = s.filter((x) => x !== k)
+        if (next.length >= 1) say(`Removed ${label(k)} — now ${next.map(label).join(' + ')}`)
+        return next
+      }
       if (k !== 'halftone') {
         const d = effectDef(k).defaults
         const keep = k === 'riso4' ? ['paper'] : ['ink', 'ink2', 'ink3', 'ink4', 'paper']
         setTex((t) => ({ ...t, ...Object.fromEntries(Object.entries(d).filter(([key]) => !keep.includes(key))) }))
       }
-      return [...s, k]
+      const next = [...s, k]
+      if (next.length === 2) say(`Stacking 2 effects: ${next.map(label).join(' then ')}. Tap a selected chip to remove it.`)
+      else if (next.length > 2) say(`${next.length} effects stacked: ${next.map(label).join(' → ')}`)
+      return next
     })
   }
 
@@ -232,7 +240,12 @@ export default function Editor({ item, onClose }: Props) {
       setParams((p) => ({ ...p, paper: 'transparent' }))
       setTex((t) => ({ ...t, paper: 'transparent' }))
     } catch (e) {
-      setError('On-device cutout failed (' + (e as Error).message + ') — try the precise cutout.')
+      const msg = (e as Error).message
+      if (/MIME type|dynamically imported|Importing a module/i.test(msg)) {
+        setError('The app updated in the background — reload the page to enable the cutout tool.')
+      } else {
+        setError('On-device cutout failed (' + msg + ') — try the precise cutout.')
+      }
     } finally {
       setBusy(null)
     }
@@ -240,10 +253,13 @@ export default function Editor({ item, onClose }: Props) {
 
   // Precise cutout (server-side service, uses studio credits) — for images the free route struggles with.
   const removeBgPrecise = useCallback(async () => {
+    if (!originalFull) return
     setBusy('Removing background (precise)…')
     setError(null)
     try {
-      const res = await fetch('/api/removebg', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: item.id }) })
+      // send the pixels we already have — provider hosts often block third-party fetches of the URL
+      const dataUrl = toCanvas(originalFull, 2200).toDataURL('image/jpeg', 0.92)
+      const res = await fetch('/api/removebg', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ image: dataUrl }) })
       if (!res.ok) {
         let msg = `Background removal failed (${res.status})`
         try {
@@ -266,7 +282,7 @@ export default function Editor({ item, onClose }: Props) {
     } finally {
       setBusy(null)
     }
-  }, [item.id, adopt])
+  }, [originalFull, adopt])
 
   const restoreOriginal = useCallback(() => {
     if (!originalFull) return
@@ -564,13 +580,13 @@ export default function Editor({ item, onClose }: Props) {
             )}
           </div>
 
-          <h3 style={{ opacity: vector ? 0.45 : 1 }}>Texture {stack.length > 1 ? `· ${stack.length} stacked` : ''}</h3>
+          <h3 style={{ opacity: vector ? 0.45 : 1 }}>Texture{stack.length > 1 ? ` · ${stack.length} stacked` : ''}</h3>
           <div className="chips" style={{ marginBottom: 10 }}>
             <button type="button" className={'btn small mobile-only' + (cutoutApplied ? ' active' : '')} disabled={!!busy || !full} onClick={() => (cutoutApplied ? restoreOriginal() : void removeBgLocal())}>
               {cutoutApplied ? 'Cutout ✓' : 'Cutout'}
             </button>
             <button type="button" className="btn small mobile-only" disabled={!!busy || !full} onClick={() => void removeBgPrecise()} title="Higher-fidelity cutout — uses studio credits">
-              HD
+              Precise cutout
             </button>
             <button type="button" className={'btn small mobile-only' + (vector ? ' active' : '')} disabled={!!busy || !full} onClick={() => { if (vector) { URL.revokeObjectURL(vector.url); setVector(null) } else void vectorize() }}>
               Vectorize
@@ -585,6 +601,11 @@ export default function Editor({ item, onClose }: Props) {
             ))}
           </div>
 
+          {stack.length > 1 && (
+            <p className="stackline">
+              Stacked in order: <b>{stack.map((k) => (k === 'halftone' ? 'Halftone' : effectDef(k).label)).join(' → ')}</b> — tap a highlighted chip to remove it.
+            </p>
+          )}
           {controls.length > 0 && (
             <div className="controls-wrap">
               {controls.map((c) => (

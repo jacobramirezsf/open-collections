@@ -82,12 +82,32 @@ export function saveBlob(blob: Blob, filename: string) {
 // Downloads one file through the proxy, falling back to a direct CORS fetch if the proxy was blocked
 // upstream, and saves it with a proper filename. Used for single-image downloads in the viewer.
 export async function downloadItem(item: Item, fileIdx: number | 'image' = 'image'): Promise<void> {
-  let res = await fetch(downloadUrl(item, fileIdx), { redirect: 'manual' })
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), 60000)
+  try {
+    return await downloadItemInner(item, fileIdx, ctrl.signal)
+  } finally {
+    clearTimeout(t)
+  }
+}
+
+async function downloadItemInner(item: Item, fileIdx: number | 'image', signal: AbortSignal): Promise<void> {
+  let res = await fetch(downloadUrl(item, fileIdx), { redirect: 'manual', signal })
   let name = filenameFrom(res, `${item.source}-${slug(item.id.split(':').pop() || '')}-${slug(item.title)}.${extOf(item)}`)
   if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400) || res.status === 502) {
-    const direct = fileIdx === 'image' ? item.originalImageUrl || item.imageUrl : item.files[fileIdx]?.url
-    if (!direct) throw new Error('No file available')
-    res = await fetch(direct, { mode: 'cors' })
+    // proxy blocked upstream → try renditions directly over CORS, largest first
+    const candidates = (fileIdx === 'image' ? [item.originalImageUrl, item.imageUrl, item.thumbnailUrl] : [item.files[fileIdx]?.url]).filter(Boolean) as string[]
+    let last: Error = new Error('No file available')
+    for (const direct of candidates) {
+      try {
+        res = await fetch(direct, { mode: 'cors', signal })
+        if (res.ok) break
+        last = new Error(`Download failed (${res.status})`)
+      } catch (e) {
+        last = e as Error
+      }
+    }
+    if (!res.ok) throw new Error(`This image's host is blocking downloads — open the original record to save it. (${last.message})`)
   }
   if (!res.ok) throw new Error(`Download failed (${res.status})`)
   saveBlob(await res.blob(), name)

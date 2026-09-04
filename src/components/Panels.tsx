@@ -5,13 +5,31 @@ import type { Query } from '../lib/api'
 
 export function useBodyLock() {
   useEffect(() => {
-    document.body.classList.add('locked')
     const n = (Number(document.body.dataset.locks) || 0) + 1
     document.body.dataset.locks = String(n)
+    if (n === 1) {
+      // iOS Safari ignores overflow:hidden for touch scrolling — a fixed body is the only real lock
+      document.body.dataset.lockScroll = String(window.scrollY)
+      document.body.classList.add('locked')
+      document.body.style.position = 'fixed'
+      document.body.style.top = `-${window.scrollY}px`
+      document.body.style.left = '0'
+      document.body.style.right = '0'
+      document.body.style.width = '100%'
+    }
     return () => {
       const left = (Number(document.body.dataset.locks) || 1) - 1
       document.body.dataset.locks = String(left)
-      if (left <= 0) document.body.classList.remove('locked')
+      if (left <= 0) {
+        const y = Number(document.body.dataset.lockScroll) || 0
+        document.body.classList.remove('locked')
+        document.body.style.position = ''
+        document.body.style.top = ''
+        document.body.style.left = ''
+        document.body.style.right = ''
+        document.body.style.width = ''
+        window.scrollTo(0, y)
+      }
     }
   }, [])
 }

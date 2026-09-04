@@ -49,10 +49,16 @@ export default handler(async (req: Request) => {
   } catch {
     return error('invalid body')
   }
-  const [item] = await getItemsAcrossShards(req, [String(body?.id || '')])
-  if (!item) return error('not found', 404)
-  const imageUrl = item.imageUrl || item.thumbnailUrl
-  if (!imageUrl) return error('no image', 404)
+  let payloadBody: string
+  if (typeof body?.image === 'string' && body.image.startsWith('data:image/')) {
+    payloadBody = JSON.stringify({ image_file_b64: body.image.replace(/^data:image\/[a-z+]+;base64,/, ''), size: 'auto', format: 'png' })
+  } else {
+    const [item] = await getItemsAcrossShards(req, [String(body?.id || '')])
+    if (!item) return error('not found', 404)
+    const imageUrl = item.imageUrl || item.thumbnailUrl
+    if (!imageUrl) return error('no image', 404)
+    payloadBody = JSON.stringify({ image_url: imageUrl, size: 'auto', format: 'png' })
+  }
 
   const ip = (req.headers.get('x-forwarded-for') || 'local').split(',')[0].trim()
   const q = await quota(ip)
@@ -61,7 +67,7 @@ export default handler(async (req: Request) => {
   const res = await fetch('https://api.remove.bg/v1.0/removebg', {
     method: 'POST',
     headers: { 'X-Api-Key': key, 'content-type': 'application/json', accept: 'image/png' },
-    body: JSON.stringify({ image_url: imageUrl, size: 'auto', format: 'png' }),
+    body: payloadBody,
   })
   if (!res.ok) {
     let msg = `Background removal error (${res.status})`

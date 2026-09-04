@@ -34,6 +34,7 @@ export default function Viewer({ items, index, onClose, onNav, onSave, onSimilar
   const [failed, setFailed] = useState(0) // 0 = viewer image, 1 = thumb, 2 = proxy, 3 = give up
   const [bigLoaded, setBigLoaded] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [dlError, setDlError] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
 
   useEffect(() => {
@@ -109,6 +110,7 @@ export default function Viewer({ items, index, onClose, onNav, onSave, onSimilar
           <div>
             <span className={'rights ' + rightsClass(item)} title={item.licenseUrl || undefined}>{item.rightsLabel}</span>
           </div>
+          {dlError && <p style={{ color: 'var(--danger)', fontSize: 12, margin: '8px 0 0' }}>{dlError}</p>}
           <div className="actions">
             {!is3d && (
               <button
@@ -116,8 +118,9 @@ export default function Viewer({ items, index, onClose, onNav, onSave, onSimilar
                 disabled={busy}
                 onClick={() => {
                   setBusy(true)
+                  setDlError(null)
                   downloadItem(item, 'image')
-                    .catch((e) => alert((e as Error).message))
+                    .catch((e) => setDlError((e as Error).name === 'AbortError' ? 'Download timed out — the source host is slow. Try again or use the original record.' : (e as Error).message))
                     .finally(() => setBusy(false))
                 }}
               >
