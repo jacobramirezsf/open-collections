@@ -15,7 +15,10 @@ export default handler(async (req: Request) => {
   if (!username) return error('Sign in to save edits to your account.', 401)
   const token = process.env.BLOB_READ_WRITE_TOKEN
   if (!token) return error('Storage not configured', 501)
-  const type = req.headers.get('content-type') || ''
+  // Clients send application/octet-stream (which the platform reliably pre-parses to a Buffer —
+  // image/* bodies hang the runtime's body handling) with the real mime in x-oc-type.
+  const ct = req.headers.get('content-type') || ''
+  const type = ct.startsWith('application/octet-stream') ? req.headers.get('x-oc-type') || '' : ct
   if (!/^image\/(png|jpeg|webp)$/.test(type)) return error('PNG, JPEG or WebP only')
   const buf = await req.arrayBuffer()
   if (buf.byteLength > MAX_BYTES) return error('Edit is too large to save (14 MB limit).', 413)

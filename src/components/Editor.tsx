@@ -4,7 +4,7 @@
 // "Save to Edits" which keeps the original artwork's name + link with the edit.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Item } from '../../shared/types'
-import { proxyImageUrl } from '../lib/api'
+import { proxyImageUrl, uploadEdit} from '../lib/api'
 import { saveBlob } from '../lib/zip'
 import { boardStore, EDITS_ID } from '../lib/boards'
 import { onAuthChange } from '../lib/account'
@@ -409,17 +409,20 @@ export default function Editor({ item, onClose }: Props) {
           // (full-resolution output is always available via Download)
           const transparent = (paperTex.startsWith('img:') ? !!sheetDef(paperTex.slice(4))?.edge : (stack.includes('halftone') && stack.length === 1 ? params.paper : tex.paper) === 'transparent') || (!stack.length && cutoutApplied)
           const mime = transparent ? 'image/png' : 'image/jpeg'
-          let blob: Blob | null = null
-          for (const edge of [2000, 1600, 1280, 1000]) {
-            const c = buildOutput(toCanvas(full!, edge), 1)
-            blob = await new Promise<Blob | null>((r) => c.toBlob(r, mime, 0.88))
-            if (blob && blob.size <= 4_200_000) break
+          // render the effect stack ONCE, then only downscale the finished pixels to fit the
+          // upload cap — re-running heavy effects per rendition froze phones
+          let c = buildOutput(toCanvas(full!, 1600), 1)
+          let blob: Blob | null = await new Promise((r) => c.toBlob(r, mime, 0.88))
+          while (blob && blob.size > 4_200_000 && c.width > 700) {
+            const s2 = document.createElement('canvas')
+            s2.width = Math.round(c.width * 0.8)
+            s2.height = Math.round(c.height * 0.8)
+            s2.getContext('2d')!.drawImage(c, 0, 0, s2.width, s2.height)
+            c = s2
+            blob = await new Promise((r) => c.toBlob(r, mime, 0.85))
           }
           if (!blob) throw new Error('render failed')
-          const res = await fetch('/api/upload-edit', { method: 'POST', headers: { 'content-type': mime }, body: blob })
-          const payload = await res.json().catch(() => null)
-          if (!res.ok) throw new Error(payload?.error || `Save failed (${res.status})`)
-          url = payload.url
+          url = await uploadEdit(blob, mime)
         } else {
           // local-only: store a compact data URL in the browser
           const smallSrc = full ? buildOutput(toCanvas(full, 1200), 1) : null

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { boardStore, type Board } from '../lib/boards'
 import { canvasStore, type CanvasDoc, type CanvasPiece } from '../lib/canvas'
 import { PAPER_SHEETS, paperUrl } from '../lib/papers'
-import { proxyImageUrl } from '../lib/api'
+import { proxyImageUrl, uploadEdit } from '../lib/api'
 import { saveBlob } from '../lib/zip'
 import { onAuthChange } from '../lib/account'
 import { useBodyLock } from './Panels'
@@ -440,27 +440,34 @@ export default function CanvasStudio({ id, onClose }: Props) {
     setBusy('Saving…')
     setTimeout(async () => {
       try {
-        const c = await renderCanvas()
+        const full = await renderCanvas()
         let url: string
         if (user) {
+          // upload a bounded rendition; only downscale finished pixels until it fits the cap
+          let c: HTMLCanvasElement = full
+          if (c.width > 1600) {
+            const s2 = document.createElement('canvas')
+            s2.width = 1600
+            s2.height = Math.round((1600 * c.height) / c.width)
+            s2.getContext('2d')!.drawImage(c, 0, 0, s2.width, s2.height)
+            c = s2
+          }
           let blob: Blob | null = await new Promise((r) => c.toBlob(r, 'image/png'))
-          if (blob && blob.size > 4_200_000) {
-            const small = document.createElement('canvas')
-            small.width = 1400
-            small.height = Math.round(1400 / (doc?.aspect || 1))
-            small.getContext('2d')!.drawImage(c, 0, 0, small.width, small.height)
-            blob = await new Promise((r) => small.toBlob(r, 'image/png'))
+          while (blob && blob.size > 4_200_000 && c.width > 700) {
+            const s2 = document.createElement('canvas')
+            s2.width = Math.round(c.width * 0.8)
+            s2.height = Math.round(c.height * 0.8)
+            s2.getContext('2d')!.drawImage(c, 0, 0, s2.width, s2.height)
+            c = s2
+            blob = await new Promise((r) => c.toBlob(r, 'image/png'))
           }
           if (!blob) throw new Error('render failed')
-          const res = await fetch('/api/upload-edit', { method: 'POST', headers: { 'content-type': 'image/png' }, body: blob })
-          const payload = await res.json().catch(() => null)
-          if (!res.ok) throw new Error(payload?.error || `Save failed (${res.status})`)
-          url = payload.url
+          url = await uploadEdit(blob, 'image/png')
         } else {
           const small = document.createElement('canvas')
           small.width = 1200
           small.height = Math.round(1200 / (doc?.aspect || 1))
-          small.getContext('2d')!.drawImage(c, 0, 0, small.width, small.height)
+          small.getContext('2d')!.drawImage(full, 0, 0, small.width, small.height)
           url = small.toDataURL('image/jpeg', 0.85)
         }
         const item: Item = {
@@ -641,7 +648,8 @@ function AddPicker({ onAdd, onUpload, onClose }: { onAdd: (i: Item) => void; onU
     const edits = boards.filter((b) => b.id === 'edits')
     const favs = boards.filter((b) => b.id === 'favorites')
     const rest = boards.filter((b) => b.id !== 'edits' && b.id !== 'favorites')
-    return [...edits, ...favs, ...rest].filter((b) => b.items.length)
+    // Edits leads even when empty — canvas pieces should primarily come from your edits
+    return [...edits, ...favs, ...rest].filter((b) => b.id === 'edits' || b.items.length)
   }, [boards])
   return (
     <>
@@ -658,7 +666,10 @@ function AddPicker({ onAdd, onUpload, onClose }: { onAdd: (i: Item) => void; onU
           {ordered.length === 0 && <p className="faint" style={{ fontSize: 13 }}>Nothing saved yet — favorite items or save edits first, or upload from your device.</p>}
           {ordered.map((b) => (
             <div key={b.id}>
-              <h4 className="picker-h">{b.name}</h4>
+              <h4 className="picker-h">{b.id === 'edits' ? 'Your edits' : b.name}</h4>
+              {b.id === 'edits' && !b.items.length && (
+                <p className="faint" style={{ fontSize: 12, margin: '2px 0 8px' }}>Nothing here yet — open any image, tap Edit, and use “Save to Edits”. Your edits land here ready to collage.</p>
+              )}
               <div className="picker-grid">
                 {b.items.map((it) => (
                   <button key={it.id} className="picker-cell" onClick={() => onAdd(it)}>

@@ -156,3 +156,27 @@ export function proxyImageUrl(item: Item, size: 'thumb' | 'view' | 'orig' = 'thu
   }
   return `/api/image?id=${encodeURIComponent(item.id)}&size=${size}`
 }
+
+// Upload one edit image for the signed-in user. Sends application/octet-stream (the platform
+// pre-parses that to a Buffer; image/* bodies hang its body handling) with the real mime in
+// x-oc-type, and aborts rather than hanging the UI if the network stalls.
+export async function uploadEdit(blob: Blob, mime: string): Promise<string> {
+  const ctl = new AbortController()
+  const t = window.setTimeout(() => ctl.abort(), 75000)
+  try {
+    const res = await fetch('/api/upload-edit', {
+      method: 'POST',
+      headers: { 'content-type': 'application/octet-stream', 'x-oc-type': mime },
+      body: blob,
+      signal: ctl.signal,
+    })
+    const payload = await res.json().catch(() => null)
+    if (!res.ok) throw new Error(payload?.error || `Save failed (${res.status})`)
+    return payload.url as string
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') throw new Error('Save timed out — check your connection and try again.')
+    throw e
+  } finally {
+    window.clearTimeout(t)
+  }
+}
