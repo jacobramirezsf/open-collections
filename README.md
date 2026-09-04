@@ -11,7 +11,7 @@ editor):
   Patent Images Chrome extension): every result is a drawing sheet, with per-figure PNG and full
   PDF downloads.
 
-**Live:** https://open-collections.vercel.app
+**Live:** https://open-collections.com
 
 ## How it works
 
