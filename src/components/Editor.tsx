@@ -13,7 +13,7 @@ import {
   CMYK_CHANNELS, EFFECTS, INK_PRESETS, PAPER_TEXTURES, TEXTURE_DEFAULTS, applyPaperTexture, applyTexture, asciiGrid,
   computeCmykScreens, effectDef, type EffectKind, type PaperTexture, type TextureParams,
 } from '../lib/textures'
-import { PAPER_SHEETS, paperUrl } from '../lib/papers'
+import { PAPER_SHEETS, paperUrl, sheetDef } from '../lib/papers'
 import { useBodyLock } from './Panels'
 
 interface Props {
@@ -155,19 +155,39 @@ export default function Editor({ item, onClose }: Props) {
         cur = k === 'halftone' ? renderScreen(computeScreen(cur, htP, pw), htP) : applyTexture(k, cur, texP, pw, 1)
       }
       if (useSheet) {
-        // the sheet becomes the page; the effect output is multiplied over it like ink on stock
-        const out = document.createElement('canvas')
-        out.width = cur.width
-        out.height = cur.height
-        const ctx = out.getContext('2d')!
         const sw = sheet.naturalWidth
         const sh = sheet.naturalHeight
-        const cover = Math.max(out.width / sw, out.height / sh)
-        ctx.drawImage(sheet, (out.width - sw * cover) / 2, (out.height - sh * cover) / 2, sw * cover, sh * cover)
-        ctx.globalCompositeOperation = sheetMode === 'ink' ? 'multiply' : 'source-over'
-        ctx.drawImage(cur, 0, 0)
-        ctx.globalCompositeOperation = 'source-over'
-        cur = out
+        if (sheetDef(paperTex.slice(4))?.edge) {
+          // deckle/torn/swatch cutout: the sheet keeps its silhouette — the canvas takes the
+          // sheet's aspect, artwork is printed inside its edge, and the surround stays transparent
+          const grow = Math.max(cur.width / sw, cur.height / sh)
+          const out = document.createElement('canvas')
+          out.width = Math.round(sw * grow)
+          out.height = Math.round(sh * grow)
+          const ctx = out.getContext('2d')!
+          ctx.drawImage(sheet, 0, 0, out.width, out.height)
+          const inset = 0.07 * Math.min(out.width, out.height)
+          const fit = Math.min((out.width - inset * 2) / cur.width, (out.height - inset * 2) / cur.height)
+          ctx.globalCompositeOperation = sheetMode === 'ink' ? 'multiply' : 'source-over'
+          ctx.drawImage(cur, (out.width - cur.width * fit) / 2, (out.height - cur.height * fit) / 2, cur.width * fit, cur.height * fit)
+          // trim everything back to the sheet's silhouette so the rough edge survives
+          ctx.globalCompositeOperation = 'destination-in'
+          ctx.drawImage(sheet, 0, 0, out.width, out.height)
+          ctx.globalCompositeOperation = 'source-over'
+          cur = out
+        } else {
+          // the sheet becomes the page; the effect output is multiplied over it like ink on stock
+          const out = document.createElement('canvas')
+          out.width = cur.width
+          out.height = cur.height
+          const ctx = out.getContext('2d')!
+          const cover = Math.max(out.width / sw, out.height / sh)
+          ctx.drawImage(sheet, (out.width - sw * cover) / 2, (out.height - sh * cover) / 2, sw * cover, sh * cover)
+          ctx.globalCompositeOperation = sheetMode === 'ink' ? 'multiply' : 'source-over'
+          ctx.drawImage(cur, 0, 0)
+          ctx.globalCompositeOperation = 'source-over'
+          cur = out
+        }
       } else if (stack.length && paperTex !== 'none') {
         cur = applyPaperTexture(cur === base ? toCanvas(base, 1e9) : cur, paperTex as PaperTexture, cur.width / pw)
       }
@@ -387,7 +407,7 @@ export default function Editor({ item, onClose }: Props) {
         if (user) {
           // the request body must stay under the platform's 4.5 MB cap — encode a bounded rendition
           // (full-resolution output is always available via Download)
-          const transparent = (paperTex.startsWith('img:') ? false : (stack.includes('halftone') && stack.length === 1 ? params.paper : tex.paper) === 'transparent') || (!stack.length && cutoutApplied)
+          const transparent = (paperTex.startsWith('img:') ? !!sheetDef(paperTex.slice(4))?.edge : (stack.includes('halftone') && stack.length === 1 ? params.paper : tex.paper) === 'transparent') || (!stack.length && cutoutApplied)
           const mime = transparent ? 'image/png' : 'image/jpeg'
           let blob: Blob | null = null
           for (const edge of [2000, 1600, 1280, 1000]) {
@@ -692,7 +712,17 @@ export default function Editor({ item, onClose }: Props) {
                         ))}
                       </optgroup>
                       <optgroup label="Papers">
-                        {PAPER_SHEETS.map((t) => (
+                        {PAPER_SHEETS.filter((t) => t.group === 'paper').map((t) => (
+                          <option key={t.slug} value={'img:' + t.slug}>{t.label}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Deckle and torn edges">
+                        {PAPER_SHEETS.filter((t) => t.group === 'edge').map((t) => (
+                          <option key={t.slug} value={'img:' + t.slug}>{t.label}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Fabric">
+                        {PAPER_SHEETS.filter((t) => t.group === 'fabric').map((t) => (
                           <option key={t.slug} value={'img:' + t.slug}>{t.label}</option>
                         ))}
                       </optgroup>

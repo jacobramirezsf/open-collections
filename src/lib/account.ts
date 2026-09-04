@@ -1,6 +1,7 @@
 // Accounts + cloud sync for boards/favorites. Local storage stays the source of truth for the UI;
 // when signed in, changes are debounced-pushed to /api/userdata and merged down on sign-in/startup.
 import { boardStore, mergeBoards, type Board } from './boards'
+import { canvasStore, mergeCanvases, type CanvasDoc } from './canvas'
 
 export interface AuthState {
   user: string | null
@@ -38,7 +39,7 @@ async function pushNow(): Promise<void> {
   state.syncing = true
   emit()
   try {
-    await api('/api/userdata', { method: 'PUT', body: JSON.stringify({ data: { boards: boardStore.list() } }) })
+    await api('/api/userdata', { method: 'PUT', body: JSON.stringify({ data: { boards: boardStore.list(), canvases: canvasStore.list() } }) })
     state.error = null
   } catch (e) {
     state.error = 'Sync failed — changes are saved in this browser and will retry.'
@@ -61,11 +62,18 @@ async function startSync() {
     const remote = await api('/api/userdata')
     const remoteBoards: Board[] = Array.isArray(remote?.data?.boards) ? remote.data.boards : []
     boardStore.setAll(mergeBoards(boardStore.list(), remoteBoards))
+    const remoteCanvases: CanvasDoc[] = Array.isArray(remote?.data?.canvases) ? remote.data.canvases : []
+    canvasStore.setAll(mergeCanvases(canvasStore.list(), remoteCanvases))
   } catch {
     /* keep local; pushes will retry */
   }
   unsubscribe?.()
-  unsubscribe = boardStore.subscribe(schedulePush)
+  const u1 = boardStore.subscribe(schedulePush)
+  const u2 = canvasStore.subscribe(schedulePush)
+  unsubscribe = () => {
+    u1()
+    u2()
+  }
   void pushNow()
 }
 
@@ -108,7 +116,7 @@ export async function signOut(): Promise<void> {
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden' && dirty && state.user) {
-      const payload = new Blob([JSON.stringify({ data: { boards: boardStore.list() } })], { type: 'application/json' })
+      const payload = new Blob([JSON.stringify({ data: { boards: boardStore.list(), canvases: canvasStore.list() } })], { type: 'application/json' })
       navigator.sendBeacon('/api/userdata', payload)
       dirty = false
     }

@@ -1,0 +1,26 @@
+import { chromium } from 'playwright'
+import fs from 'node:fs'
+const browser = await chromium.launch()
+const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+await page.goto('http://localhost:5180/', { waitUntil: 'domcontentloaded' })
+await page.fill('input[type="search"], .searchbar input', 'tulip painting')
+await page.keyboard.press('Enter')
+await page.waitForSelector('.card img.loaded', { timeout: 30000 })
+await page.click('.card >> nth=0')
+await page.waitForSelector('.viewer', { timeout: 15000 })
+await page.click('button:has-text("Edit")')
+await page.waitForTimeout(2000)
+await page.getByRole('button', { name: 'None', exact: true }).click()
+await page.waitForTimeout(300)
+await page.click('button:has-text("Embroidery")')
+await page.waitForTimeout(2500)
+const data = await page.evaluate(() => {
+  const c = document.querySelector('.stage canvas, canvas')
+  const crop = document.createElement('canvas')
+  crop.width = 420; crop.height = 420
+  crop.getContext('2d').drawImage(c, c.width/2 - 210, c.height/3 - 210, 420, 420, 0, 0, 420, 420)
+  return crop.toDataURL('image/png')
+})
+fs.writeFileSync('data/shots/fx-stitch-crop.png', Buffer.from(data.split(',')[1], 'base64'))
+console.log('crop saved')
+await browser.close()

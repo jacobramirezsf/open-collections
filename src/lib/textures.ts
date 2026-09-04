@@ -5,7 +5,7 @@
 
 import { type Screen, renderScreen as renderHalftoneScreen } from './halftone'
 
-export type EffectKind = 'halftone' | 'dither' | 'riso' | 'stipple' | 'glyphs' | 'hatch' | 'duotone' | 'pixelate' | 'paper' | 'ascii' | 'risoduo' | 'riso4' | 'cmyk' | 'gradient' | 'stitch'
+export type EffectKind = 'halftone' | 'dither' | 'riso' | 'stipple' | 'glyphs' | 'hatch' | 'duotone' | 'pixelate' | 'paper' | 'ascii' | 'risoduo' | 'riso4' | 'cmyk' | 'gradient' | 'stitch' | 'threadpaint'
 
 export interface TextureParams {
   size: number // cell/block/spacing in preview px
@@ -157,6 +157,17 @@ export const EFFECTS: EffectDef[] = [
     defaults: { size: 9, levels: 6, paper: '#f2eee4' },
   },
   {
+    key: 'threadpaint',
+    label: 'Thread paint',
+    controls: [
+      { k: 'size', label: 'Stitch size', min: 4, max: 14, step: 1 },
+      { k: 'levels', label: 'Thread colors', min: 2, max: 12, step: 1 },
+      { k: 'amount', label: 'Density', min: 0.4, max: 1, step: 0.05 },
+    ],
+    colors: ['paper'],
+    defaults: { size: 6, levels: 8, amount: 0.85, paper: '#f2eee4' },
+  },
+  {
     key: 'cmyk',
     label: 'CMYK halftone',
     controls: [
@@ -298,6 +309,7 @@ export function applyTexture(effect: EffectKind, src: HTMLCanvasElement, p: Text
   if (effect === 'cmyk') return renderCmyk(work, p, unit)
   if (effect === 'gradient') return renderGradient(work, p)
   if (effect === 'stitch') return renderStitch(work, p, unit)
+  if (effect === 'threadpaint') return renderThreadPaint(work, p, unit)
 
   if (effect === 'pixelate') {
     const block = Math.max(2, Math.round(unit))
@@ -856,6 +868,40 @@ function quantizePalette(d: Uint8ClampedArray, n: number, k: number, rnd: () => 
   }
 }
 
+// Thread colors read washed-out if the quantized palette is used as-is (real rayon thread is
+// saturated); nudge saturation and contrast the way the Lab's photoreal renderer does.
+function threadColor([r, g, b]: [number, number, number], sat = 1.35, contrast = 1.08): [number, number, number] {
+  const l = 0.299 * r + 0.587 * g + 0.114 * b
+  const c = (v: number) => Math.max(0, Math.min(255, (l + (v - l) * sat - 128) * contrast + 128))
+  return [c(r), c(g), c(b)]
+}
+
+// Per-stitch shading borrowed from the Lab's stitch renderer: a linear gradient ACROSS the stroke —
+// dark rails, bright crown — reads as glossy rayon thread.
+function threadStroke(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, width: number, r: number, g: number, b: number, alpha = 1) {
+  const len = Math.hypot(x1 - x0, y1 - y0)
+  if (len < 0.5) return
+  const nx = -(y1 - y0) / len
+  const ny = (x1 - x0) / len
+  const mx = (x0 + x1) / 2
+  const my = (y0 + y1) / 2
+  const shade = (amt: number) => {
+    const mix = (c: number) => Math.max(0, Math.min(255, Math.round(amt > 0 ? c + (255 - c) * amt : c * (1 + amt))))
+    return `rgba(${mix(r)},${mix(g)},${mix(b)},${alpha})`
+  }
+  const grad = ctx.createLinearGradient(mx + nx * width * 0.6, my + ny * width * 0.6, mx - nx * width * 0.6, my - ny * width * 0.6)
+  grad.addColorStop(0, shade(-0.55))
+  grad.addColorStop(0.5, shade(0.28))
+  grad.addColorStop(1, shade(-0.55))
+  ctx.strokeStyle = grad
+  ctx.lineWidth = width
+  ctx.lineCap = 'round'
+  ctx.beginPath()
+  ctx.moveTo(x0, y0)
+  ctx.lineTo(x1, y1)
+  ctx.stroke()
+}
+
 function renderStitch(work: HTMLCanvasElement, p: TextureParams, cellPx: number): HTMLCanvasElement {
   const w = work.width
   const h = work.height
@@ -895,37 +941,92 @@ function renderStitch(work: HTMLCanvasElement, p: TextureParams, cellPx: number)
       const i = gy * gw + gx
       const a = sd[i * 4 + 3] / 255
       if (a < 0.25) continue
-      const [r, g, b] = palette[assign(i)]
+      const [r, g, b] = threadColor(palette[assign(i)], 1.5, 1.16)
       const cx = (gx + 0.5) * cell + (rnd() - 0.5) * cell * 0.06
       const cy = (gy + 0.5) * cell + (rnd() - 0.5) * cell * 0.06
       const jitter = () => (rnd() - 0.5) * cell * 0.08
-      // shadow under stitches
-      ctx.strokeStyle = `rgba(${r * 0.45},${g * 0.45},${b * 0.45},${0.5 * a})`
-      ctx.lineWidth = cell * 0.34
+      // soft drop shadow beneath the X — lighter threads cast a fainter one so pales stay clean
+      const darkness = 1 - (0.299 * r + 0.587 * g + 0.114 * b) / 255
+      ctx.strokeStyle = `rgba(30,22,14,${(0.1 + 0.25 * darkness) * a})`
+      ctx.lineWidth = cell * 0.36
+      ctx.lineCap = 'round'
       ctx.beginPath()
-      ctx.moveTo(cx - arm, cy - arm)
-      ctx.lineTo(cx + arm, cy + arm)
-      ctx.moveTo(cx + arm, cy - arm)
-      ctx.lineTo(cx - arm, cy + arm)
+      ctx.moveTo(cx - arm + cell * 0.05, cy - arm + cell * 0.09)
+      ctx.lineTo(cx + arm + cell * 0.05, cy + arm + cell * 0.09)
+      ctx.moveTo(cx + arm + cell * 0.05, cy - arm + cell * 0.09)
+      ctx.lineTo(cx - arm + cell * 0.05, cy + arm + cell * 0.09)
       ctx.stroke()
-      // thread body: two crossing arms, second sits on top
-      for (const [x0, y0, x1, y1] of [
-        [cx - arm + jitter(), cy - arm + jitter(), cx + arm + jitter(), cy + arm + jitter()],
-        [cx + arm + jitter(), cy - arm + jitter(), cx - arm + jitter(), cy + arm + jitter()],
-      ] as [number, number, number, number][]) {
-        ctx.strokeStyle = `rgba(${r},${g},${b},${a})`
-        ctx.lineWidth = cell * 0.3
+      // two glossy arms, top arm marginally brighter (it catches the light)
+      threadStroke(ctx, cx - arm + jitter(), cy - arm + jitter(), cx + arm + jitter(), cy + arm + jitter(), cell * 0.36, r * 0.92, g * 0.92, b * 0.92, a)
+      threadStroke(ctx, cx + arm + jitter(), cy - arm + jitter(), cx - arm + jitter(), cy + arm + jitter(), cell * 0.36, r, g, b, a)
+    }
+  }
+  return canvas
+}
+
+// ---------------------------------------------------------------------------
+// Thread paint (photoreal-style): short glossy strokes following the image's contours, in a
+// quantized thread palette, sewn darkest-first — the look of the Lab's photoreal thread paint.
+function renderThreadPaint(work: HTMLCanvasElement, p: TextureParams, cellPx: number): HTMLCanvasElement {
+  const w = work.width
+  const h = work.height
+  const cell = Math.max(3, cellPx)
+  const gw = Math.ceil(w / cell)
+  const gh = Math.ceil(h / cell)
+  const small = document.createElement('canvas')
+  small.width = gw
+  small.height = gh
+  const sctx = small.getContext('2d', { willReadFrequently: true })!
+  sctx.drawImage(work, 0, 0, gw, gh)
+  const sd = sctx.getImageData(0, 0, gw, gh).data
+  const rnd = mulberry32(191919)
+  const threads = Math.max(2, Math.min(12, p.levels || 8))
+  const { palette, assign } = quantizePalette(sd, gw * gh, threads, rnd)
+  // luminance + sobel direction on the small grid
+  const lum = new Float32Array(gw * gh)
+  for (let i = 0; i < gw * gh; i++) lum[i] = (0.299 * sd[i * 4] + 0.587 * sd[i * 4 + 1] + 0.114 * sd[i * 4 + 2]) / 255
+  const angleOf = (x: number, y: number) => {
+    const at = (xx: number, yy: number) => lum[Math.min(gh - 1, Math.max(0, yy)) * gw + Math.min(gw - 1, Math.max(0, xx))]
+    const gx = at(x + 1, y - 1) + 2 * at(x + 1, y) + at(x + 1, y + 1) - at(x - 1, y - 1) - 2 * at(x - 1, y) - at(x - 1, y + 1)
+    const gy = at(x - 1, y + 1) + 2 * at(x, y + 1) + at(x + 1, y + 1) - at(x - 1, y - 1) - 2 * at(x, y - 1) - at(x + 1, y - 1)
+    if (Math.abs(gx) + Math.abs(gy) < 0.03) return null // flat area
+    return Math.atan2(gy, gx) + Math.PI / 2 // along the contour
+  }
+  const { canvas, ctx } = makeOut(w, h, p.paper)
+  // group cells per thread, sew darkest first
+  const lumaOf = (c: [number, number, number]) => 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]
+  const order = palette.map((_, i) => i).sort((a, b) => lumaOf(palette[a]) - lumaOf(palette[b]))
+  const cellsByThread: number[][] = palette.map(() => [])
+  for (let i = 0; i < gw * gh; i++) {
+    if (sd[i * 4 + 3] < 60) continue
+    cellsByThread[assign(i)].push(i)
+  }
+  const strokeLen = cell * 1.9
+  const width = cell * 0.62
+  for (const ti of order) {
+    const [r, g, b] = threadColor(palette[ti], 1.2, 1.04)
+    for (const i of cellsByThread[ti]) {
+      const gx = i % gw
+      const gy = (i / gw) | 0
+      const a = sd[i * 4 + 3] / 255
+      const n = p.amount > rnd() ? 2 : 1
+      for (let k = 0; k < n; k++) {
+        const ang = angleOf(gx, gy) ?? rnd() * Math.PI
+        const jx = (gx + 0.5 + (rnd() - 0.5) * 0.9) * cell
+        const jy = (gy + 0.5 + (rnd() - 0.5) * 0.9) * cell
+        const L = strokeLen * (0.75 + rnd() * 0.5)
+        const dx = (Math.cos(ang) * L) / 2
+        const dy = (Math.sin(ang) * L) / 2
+        // shadow then glossy stroke
+        ctx.strokeStyle = `rgba(25,18,12,${0.18 * a})`
+        ctx.lineWidth = width * 1.15
+        ctx.lineCap = 'round'
         ctx.beginPath()
-        ctx.moveTo(x0, y0)
-        ctx.lineTo(x1, y1)
+        ctx.moveTo(jx - dx + width * 0.12, jy - dy + width * 0.18)
+        ctx.lineTo(jx + dx + width * 0.12, jy + dy + width * 0.18)
         ctx.stroke()
-        // sheen highlight along the upper edge
-        ctx.strokeStyle = `rgba(${Math.min(255, r + 70)},${Math.min(255, g + 70)},${Math.min(255, b + 70)},${0.55 * a})`
-        ctx.lineWidth = cell * 0.09
-        ctx.beginPath()
-        ctx.moveTo(x0 + (y1 > y0 ? 1 : -1) * cell * 0.05, y0 - cell * 0.06)
-        ctx.lineTo(x1 + (y1 > y0 ? 1 : -1) * cell * 0.05, y1 - cell * 0.06)
-        ctx.stroke()
+        const v = 0.9 + rnd() * 0.16 // slight per-stroke thread variance
+        threadStroke(ctx, jx - dx, jy - dy, jx + dx, jy + dy, width, r * v, g * v, b * v, Math.min(1, a * 1.25))
       }
     }
   }

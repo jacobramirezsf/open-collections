@@ -9,6 +9,8 @@ import { downloadFiles, type BatchProgress, type BatchSize } from './lib/downloa
 import Grid from './components/Grid'
 import Viewer from './components/Viewer'
 import ContactSheet from './components/ContactSheet'
+import CanvasStudio from './components/CanvasStudio'
+import { canvasStore } from './lib/canvas'
 import { AccountPanel, BoardsPanel, Filters, PatentFilters, SaveToBoard, StatusPanel } from './components/Panels'
 
 const HINTS: Record<Tool, string[]> = {
@@ -16,15 +18,16 @@ const HINTS: Record<Tool, string[]> = {
   patents: ['goggles', 'sewing machine', 'bicycle', 'espresso machine', 'roller skate', 'diving suit', 'typewriter', 'kite', 'surfboard', 'toy robot', 'climbing', 'chair', 'synthesizer', 'camera'],
 }
 
-type View = { kind: 'search' } | { kind: 'board'; id: string } | { kind: 'similar'; base: Item } | { kind: 'sheet'; title: string; items: Item[] }
+type View = { kind: 'search' } | { kind: 'board'; id: string } | { kind: 'similar'; base: Item } | { kind: 'sheet'; title: string; items: Item[] } | { kind: 'canvas'; id: string }
 
 function readUrl(): { query: Query; view: View; tool: Tool } {
   const p = new URLSearchParams(location.search)
   const m = location.hash.match(/^#\/board\/([a-z0-9]+)/)
+  const cv = location.hash.match(/^#\/canvas\/([a-z0-9]+)/)
   const tool: Tool = location.pathname.startsWith('/patents') ? 'patents' : 'museums'
   const query = paramsToQuery(p)
   if (tool === 'patents' && !p.get('n') && !p.get('limit')) query.limit = 100
-  return { query, view: m ? { kind: 'board', id: m[1] } : { kind: 'search' }, tool }
+  return { query, view: cv ? { kind: 'canvas', id: cv[1] } : m ? { kind: 'board', id: m[1] } : { kind: 'search' }, tool }
 }
 
 function useBoards(): Board[] {
@@ -295,6 +298,16 @@ export default function App() {
     return new Set(sources.map((s) => s.key).filter((k) => !query.sources.includes(k)))
   }, [query.sources, sources])
 
+  if (view.kind === 'canvas')
+    return (
+      <CanvasStudio
+        id={view.id}
+        onClose={() => {
+          location.hash = ''
+          setView({ kind: 'search' })
+        }}
+      />
+    )
   if (view.kind === 'sheet') return <ContactSheet items={view.items} title={view.title} onClose={() => setView(similarItems ? { kind: 'similar', base: similarItems[0] } : board ? { kind: 'board', id: board.id } : { kind: 'search' })} />
 
   const statusText = () => {
@@ -343,6 +356,16 @@ export default function App() {
           </div>
           <button className={'btn' + (showFilters ? ' active' : '')} onClick={() => setShowFilters((v) => !v)}>Filters</button>
           <button className="btn" onClick={() => setPanel('boards')}>Boards{boards.length > 1 ? ` (${boards.length})` : ''}</button>
+          <button
+            className="btn"
+            onClick={() => {
+              const d = canvasStore.list()[0] || canvasStore.create('My canvas')
+              location.hash = `#/canvas/${d.id}`
+              setView({ kind: 'canvas', id: d.id })
+            }}
+          >
+            Canvas
+          </button>
           <button className={'btn' + (auth.user ? ' active' : '')} onClick={() => setPanel('account')} title={auth.user ? `Signed in as ${auth.user}` : 'Sign in to sync boards'}>
             {auth.user ? `@${auth.user}` : 'Sign in'}
           </button>
