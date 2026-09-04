@@ -18,6 +18,7 @@ export function allowedRawUrl(raw: string | null): string | null {
     const u = new URL(raw)
     if (u.protocol !== 'https:') return null
     if (URL_PROXY_HOSTS.has(u.host)) return u.href
+    if (u.host.endsWith('.public.blob.vercel-storage.com')) return u.href
     if (u.host === 'storage.googleapis.com' && (u.pathname.startsWith('/patentimages/') || u.pathname.startsWith('/download/storage/v1/b/patentimages/'))) return u.href
     return null
   } catch {

@@ -12,6 +12,7 @@ export const SOURCE_META: Record<string, Omit<SourceInfo, 'count' | 'contentType
   nih3d: { key: 'nih3d', name: 'NIH 3D', homepage: 'https://3d.nih.gov/', license: 'Per model (PD / CC BY)' },
   harvard: { key: 'harvard', name: 'Harvard Art Museums', homepage: 'https://harvardartmuseums.org/collections', license: 'Verify per object' },
   smk: { key: 'smk', name: 'SMK (Denmark)', homepage: 'https://open.smk.dk/en/', license: 'Public domain / CC0' },
+  edits: { key: 'edits', name: 'My edits', homepage: '', license: 'Derived from open collection works' },
   nypl: { key: 'nypl', name: 'NYPL Digital Collections', homepage: 'https://digitalcollections.nypl.org/', license: 'Public domain' },
   flickr: { key: 'flickr', name: 'Flickr Commons', homepage: 'https://www.flickr.com/commons', license: 'No known restrictions / CC0' },
   europeana: { key: 'europeana', name: 'Europeana', homepage: 'https://www.europeana.eu/en/collections', license: 'PD / CC0 / CC BY (per record)' },

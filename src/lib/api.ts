@@ -134,10 +134,11 @@ export function fetchStatus(): Promise<Status> {
 // Items that live in our index are addressed by id; live items (patents) carry absolute URLs and
 // go through the allowlisted raw-url proxy instead.
 function isLive(item: Item): boolean {
-  return item.source === 'patents'
+  return item.source === 'patents' || item.source === 'edits'
 }
 
 export function downloadUrl(item: Item, fileIndex: number | 'image' = 'image'): string {
+  if (item.originalImageUrl?.startsWith('data:')) return item.originalImageUrl
   if (isLive(item)) {
     const f = fileIndex === 'image' ? null : item.files[Number(fileIndex)]
     const url = f?.url || item.originalImageUrl || item.imageUrl || item.thumbnailUrl || ''
@@ -148,6 +149,7 @@ export function downloadUrl(item: Item, fileIndex: number | 'image' = 'image'): 
 }
 
 export function proxyImageUrl(item: Item, size: 'thumb' | 'view' | 'orig' = 'thumb'): string {
+  if (item.originalImageUrl?.startsWith('data:')) return item.originalImageUrl
   if (isLive(item)) {
     const url = size === 'thumb' ? item.thumbnailUrl : item.originalImageUrl || item.imageUrl || item.thumbnailUrl
     return `/api/image?url=${encodeURIComponent(url || '')}`

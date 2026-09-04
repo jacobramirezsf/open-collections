@@ -11,7 +11,7 @@ export interface Board {
 
 export interface BoardStore {
   list(): Board[]
-  create(name: string): Board
+  create(name: string, id?: string): Board
   rename(id: string, name: string): void
   remove(id: string): void
   addItems(id: string, items: Item[]): number
@@ -23,6 +23,7 @@ export interface BoardStore {
 }
 
 export const FAVORITES_ID = 'favorites'
+export const EDITS_ID = 'edits'
 
 function withFavorites(boards: Board[]): Board[] {
   let fav = boards.find((b) => b.id === FAVORITES_ID)
@@ -91,8 +92,10 @@ export function createLocalBoardStore(): BoardStore {
   })
   return {
     list: () => boards,
-    create(name) {
-      const b: Board = { id: Math.random().toString(36).slice(2, 10), name: name.trim() || 'Untitled board', createdAt: Date.now(), updatedAt: Date.now(), items: [] }
+    create(name, id) {
+      const existing = id && boards.find((x) => x.id === id)
+      if (existing) return existing
+      const b: Board = { id: id || Math.random().toString(36).slice(2, 10), name: name.trim() || 'Untitled board', createdAt: Date.now(), updatedAt: Date.now(), items: [] }
       boards = [b, ...boards]
       commit()
       return b

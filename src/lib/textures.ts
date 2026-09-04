@@ -5,7 +5,7 @@
 
 import { type Screen, renderScreen as renderHalftoneScreen } from './halftone'
 
-export type EffectKind = 'halftone' | 'dither' | 'riso' | 'stipple' | 'glyphs' | 'hatch' | 'duotone' | 'pixelate' | 'paper' | 'ascii' | 'risoduo' | 'cmyk' | 'gradient'
+export type EffectKind = 'halftone' | 'dither' | 'riso' | 'stipple' | 'glyphs' | 'hatch' | 'duotone' | 'pixelate' | 'paper' | 'ascii' | 'risoduo' | 'riso4' | 'cmyk' | 'gradient' | 'stitch'
 
 export interface TextureParams {
   size: number // cell/block/spacing in preview px
@@ -133,6 +133,26 @@ export const EFFECTS: EffectDef[] = [
     colors: ['ink', 'ink2', 'paper'],
     invert: true,
     defaults: { amount: 0.55, size: 4, ink: '#1d4ed8', ink2: '#e4572e' },
+  },
+  {
+    key: 'riso4',
+    label: 'Riso 4-color',
+    controls: [
+      { k: 'amount', label: 'Grain', min: 0, max: 1, step: 0.05 },
+      { k: 'size', label: 'Misregistration', min: 0, max: 12, step: 1 },
+    ],
+    colors: ['paper'],
+    defaults: { amount: 0.5, size: 3, paper: '#f5f2e9' },
+  },
+  {
+    key: 'stitch',
+    label: 'Embroidery',
+    controls: [
+      { k: 'size', label: 'Stitch size', min: 5, max: 20, step: 1 },
+      { k: 'levels', label: 'Thread colors', min: 2, max: 12, step: 1 },
+    ],
+    colors: ['paper'],
+    defaults: { size: 9, levels: 6, paper: '#f2eee4' },
   },
   {
     key: 'cmyk',
@@ -272,8 +292,10 @@ export function applyTexture(effect: EffectKind, src: HTMLCanvasElement, p: Text
 
   if (effect === 'ascii') return renderAscii(work, p, unit)
   if (effect === 'risoduo') return renderRisoDuo(work, p, unit)
+  if (effect === 'riso4') return renderRiso4(work, p, unit)
   if (effect === 'cmyk') return renderCmyk(work, p, unit)
   if (effect === 'gradient') return renderGradient(work, p)
+  if (effect === 'stitch') return renderStitch(work, p, unit)
 
   if (effect === 'pixelate') {
     const block = Math.max(2, Math.round(unit))
@@ -713,5 +735,257 @@ function renderGradient(work: HTMLCanvasElement, p: TextureParams): HTMLCanvasEl
   ctx.imageSmoothingEnabled = true
   ctx.imageSmoothingQuality = 'high'
   ctx.drawImage(mid, 0, 0, w, h)
+  return canvas
+}
+
+// ---------------------------------------------------------------------------
+// Riso 4-color: automatic CMYK separation printed as grainy riso ink layers with misregistration.
+export const RISO_INKS: { ch: 'c' | 'm' | 'y' | 'k'; color: string; name: string }[] = [
+  { ch: 'y', color: '#ffe800', name: 'Yellow' },
+  { ch: 'm', color: '#ff48b0', name: 'Fluor Pink' },
+  { ch: 'c', color: '#0078bf', name: 'Blue' },
+  { ch: 'k', color: '#151515', name: 'Black' },
+]
+
+function renderRiso4(work: HTMLCanvasElement, p: TextureParams, offsetPx: number): HTMLCanvasElement {
+  const w = work.width
+  const h = work.height
+  const d = work.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, w, h).data
+  const rnd = mulberry32(424242)
+  const { canvas, ctx } = makeOut(w, h, p.paper === 'transparent' ? p.paper : p.paper)
+  if (p.paper !== 'transparent') ctx.globalCompositeOperation = 'multiply'
+  const offsets: Record<string, [number, number]> = { y: [offsetPx * 0.6, -offsetPx * 0.3], m: [-offsetPx * 0.5, offsetPx * 0.5], c: [offsetPx * 0.35, offsetPx * 0.55], k: [0, 0] }
+  for (const { ch, color } of RISO_INKS) {
+    const layer = document.createElement('canvas')
+    layer.width = w
+    layer.height = h
+    const lctx = layer.getContext('2d')!
+    const im = lctx.createImageData(w, h)
+    const [r0, g0, b0] = hexToRgb(color)
+    for (let i = 0; i < w * h; i++) {
+      const a = d[i * 4 + 3] / 255
+      if (a < 0.1) continue
+      const r = (d[i * 4] / 255) * a + (1 - a)
+      const g = (d[i * 4 + 1] / 255) * a + (1 - a)
+      const b = (d[i * 4 + 2] / 255) * a + (1 - a)
+      const k = 1 - Math.max(r, g, b)
+      let val: number
+      if (ch === 'k') val = k * k // keep black restrained, riso style
+      else if (k >= 0.995) val = 0
+      else if (ch === 'c') val = (1 - r - k) / (1 - k)
+      else if (ch === 'm') val = (1 - g - k) / (1 - k)
+      else val = (1 - b - k) / (1 - k)
+      const grainy = Math.max(0, Math.min(1, val + (rnd() - 0.5) * p.amount * 1.1))
+      if (grainy < 0.05) continue
+      im.data[i * 4] = r0
+      im.data[i * 4 + 1] = g0
+      im.data[i * 4 + 2] = b0
+      im.data[i * 4 + 3] = 255 * grainy * Math.min(1, a * 1.2)
+    }
+    lctx.putImageData(im, 0, 0)
+    const [ox, oy] = offsets[ch]
+    ctx.drawImage(layer, ox, oy)
+  }
+  ctx.globalCompositeOperation = 'source-over'
+  return canvas
+}
+
+// ---------------------------------------------------------------------------
+// Embroidery: photoreal cross-stitch — the image quantized to a small thread palette, one X of
+// glossy thread per cell on an aida-style fabric ground. (A lean cousin of Bayside's Stitch Lab
+// photoreal tool; the full thread-paint/DST version lives there.)
+function quantizePalette(d: Uint8ClampedArray, n: number, k: number, rnd: () => number): { palette: [number, number, number][]; assign: (i: number) => number } {
+  // k-means on a sample
+  const samples: [number, number, number][] = []
+  for (let s = 0; s < 4000; s++) {
+    const i = Math.floor(rnd() * n)
+    if (d[i * 4 + 3] < 30) continue
+    samples.push([d[i * 4], d[i * 4 + 1], d[i * 4 + 2]])
+  }
+  if (!samples.length) return { palette: [[0, 0, 0]], assign: () => 0 }
+  let centers = samples.slice(0, k).map((s) => [...s] as [number, number, number])
+  while (centers.length < k) centers.push([...samples[Math.floor(rnd() * samples.length)]] as [number, number, number])
+  for (let iter = 0; iter < 8; iter++) {
+    const sum = centers.map(() => [0, 0, 0, 0])
+    for (const s of samples) {
+      let bi = 0
+      let bd = Infinity
+      for (let c = 0; c < centers.length; c++) {
+        const dx = s[0] - centers[c][0]
+        const dy = s[1] - centers[c][1]
+        const dz = s[2] - centers[c][2]
+        const dist = dx * dx + dy * dy + dz * dz
+        if (dist < bd) {
+          bd = dist
+          bi = c
+        }
+      }
+      sum[bi][0] += s[0]
+      sum[bi][1] += s[1]
+      sum[bi][2] += s[2]
+      sum[bi][3]++
+    }
+    centers = centers.map((c, i) => (sum[i][3] ? [sum[i][0] / sum[i][3], sum[i][1] / sum[i][3], sum[i][2] / sum[i][3]] : c)) as [number, number, number][]
+  }
+  return {
+    palette: centers,
+    assign: (i: number) => {
+      let bi = 0
+      let bd = Infinity
+      for (let c = 0; c < centers.length; c++) {
+        const dx = d[i * 4] - centers[c][0]
+        const dy = d[i * 4 + 1] - centers[c][1]
+        const dz = d[i * 4 + 2] - centers[c][2]
+        const dist = dx * dx + dy * dy + dz * dz
+        if (dist < bd) {
+          bd = dist
+          bi = c
+        }
+      }
+      return bi
+    },
+  }
+}
+
+function renderStitch(work: HTMLCanvasElement, p: TextureParams, cellPx: number): HTMLCanvasElement {
+  const w = work.width
+  const h = work.height
+  const cell = Math.max(4, cellPx)
+  const gw = Math.ceil(w / cell)
+  const gh = Math.ceil(h / cell)
+  // downsample to grid
+  const small = document.createElement('canvas')
+  small.width = gw
+  small.height = gh
+  const sctx = small.getContext('2d', { willReadFrequently: true })!
+  sctx.drawImage(work, 0, 0, gw, gh)
+  const sd = sctx.getImageData(0, 0, gw, gh).data
+  const rnd = mulberry32(778899)
+  const threads = Math.max(2, Math.min(12, p.levels || 6))
+  const { palette, assign } = quantizePalette(sd, gw * gh, threads, rnd)
+  const { canvas, ctx } = makeOut(w, h, p.paper)
+  // aida fabric ground
+  if (p.paper !== 'transparent') {
+    ctx.strokeStyle = 'rgba(0,0,0,0.055)'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    for (let x = 0; x <= gw; x++) {
+      ctx.moveTo(x * cell, 0)
+      ctx.lineTo(x * cell, h)
+    }
+    for (let y = 0; y <= gh; y++) {
+      ctx.moveTo(0, y * cell)
+      ctx.lineTo(w, y * cell)
+    }
+    ctx.stroke()
+  }
+  ctx.lineCap = 'round'
+  const arm = cell * 0.42
+  for (let gy = 0; gy < gh; gy++) {
+    for (let gx = 0; gx < gw; gx++) {
+      const i = gy * gw + gx
+      const a = sd[i * 4 + 3] / 255
+      if (a < 0.25) continue
+      const [r, g, b] = palette[assign(i)]
+      const cx = (gx + 0.5) * cell + (rnd() - 0.5) * cell * 0.06
+      const cy = (gy + 0.5) * cell + (rnd() - 0.5) * cell * 0.06
+      const jitter = () => (rnd() - 0.5) * cell * 0.08
+      // shadow under stitches
+      ctx.strokeStyle = `rgba(${r * 0.45},${g * 0.45},${b * 0.45},${0.5 * a})`
+      ctx.lineWidth = cell * 0.34
+      ctx.beginPath()
+      ctx.moveTo(cx - arm, cy - arm)
+      ctx.lineTo(cx + arm, cy + arm)
+      ctx.moveTo(cx + arm, cy - arm)
+      ctx.lineTo(cx - arm, cy + arm)
+      ctx.stroke()
+      // thread body: two crossing arms, second sits on top
+      for (const [x0, y0, x1, y1] of [
+        [cx - arm + jitter(), cy - arm + jitter(), cx + arm + jitter(), cy + arm + jitter()],
+        [cx + arm + jitter(), cy - arm + jitter(), cx - arm + jitter(), cy + arm + jitter()],
+      ] as [number, number, number, number][]) {
+        ctx.strokeStyle = `rgba(${r},${g},${b},${a})`
+        ctx.lineWidth = cell * 0.3
+        ctx.beginPath()
+        ctx.moveTo(x0, y0)
+        ctx.lineTo(x1, y1)
+        ctx.stroke()
+        // sheen highlight along the upper edge
+        ctx.strokeStyle = `rgba(${Math.min(255, r + 70)},${Math.min(255, g + 70)},${Math.min(255, b + 70)},${0.55 * a})`
+        ctx.lineWidth = cell * 0.09
+        ctx.beginPath()
+        ctx.moveTo(x0 + (y1 > y0 ? 1 : -1) * cell * 0.05, y0 - cell * 0.06)
+        ctx.lineTo(x1 + (y1 > y0 ? 1 : -1) * cell * 0.05, y1 - cell * 0.06)
+        ctx.stroke()
+      }
+    }
+  }
+  return canvas
+}
+
+// ---------------------------------------------------------------------------
+// Paper surface textures, applied as a final pass over any non-transparent result.
+export type PaperTexture = 'none' | 'fiber' | 'speckle' | 'canvas' | 'newsprint'
+export const PAPER_TEXTURES: { key: PaperTexture; label: string }[] = [
+  { key: 'none', label: 'Smooth' },
+  { key: 'fiber', label: 'Fiber' },
+  { key: 'speckle', label: 'Speckle' },
+  { key: 'canvas', label: 'Canvas' },
+  { key: 'newsprint', label: 'Newsprint' },
+]
+
+export function applyPaperTexture(canvas: HTMLCanvasElement, kind: PaperTexture, scale = 1): HTMLCanvasElement {
+  if (kind === 'none') return canvas
+  const w = canvas.width
+  const h = canvas.height
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })!
+  const im = ctx.getImageData(0, 0, w, h)
+  const d = im.data
+  const rnd = mulberry32(31337)
+  const s = Math.max(1, Math.round(2 * scale))
+  if (kind === 'fiber' || kind === 'newsprint') {
+    const nw = Math.ceil(w / s)
+    const noise = new Float32Array(nw * Math.ceil(h / s))
+    for (let i = 0; i < noise.length; i++) noise[i] = rnd()
+    const strength = kind === 'newsprint' ? 0.16 : 0.1
+    const tint = kind === 'newsprint' ? 8 : 0
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4
+        if (d[i + 3] === 0) continue
+        const n = noise[((y / s) | 0) * nw + ((x / s) | 0)] - 0.5
+        const m = 1 - strength * n
+        d[i] = Math.min(255, d[i] * m - tint * 0.3)
+        d[i + 1] = Math.min(255, d[i + 1] * m - tint * 0.2)
+        d[i + 2] = Math.min(255, d[i + 2] * m)
+      }
+    }
+  } else if (kind === 'speckle') {
+    const count = (w * h) / (900 / scale)
+    ctx.putImageData(im, 0, 0)
+    for (let i = 0; i < count; i++) {
+      const x = rnd() * w
+      const y = rnd() * h
+      const dark = rnd() > 0.5
+      ctx.fillStyle = dark ? 'rgba(60,50,40,0.10)' : 'rgba(255,255,255,0.14)'
+      ctx.beginPath()
+      ctx.arc(x, y, (0.4 + rnd() * 1.1) * scale, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    return canvas
+  } else if (kind === 'canvas') {
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4
+        if (d[i + 3] === 0) continue
+        const weave = (Math.sin((x / (2.2 * scale)) * Math.PI) * Math.sin((y / (2.2 * scale)) * Math.PI)) * 0.06 + (rnd() - 0.5) * 0.02
+        const m = 1 - weave
+        d[i] *= m
+        d[i + 1] *= m
+        d[i + 2] *= m
+      }
+    }
+  }
+  ctx.putImageData(im, 0, 0)
   return canvas
 }
