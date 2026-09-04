@@ -525,7 +525,7 @@ export default function Editor({ item, onClose }: Props) {
           onPointerCancel={onPointerUp}
           onDoubleClick={resetView}
         >
-          {busy && <div className="ph" style={{ position: 'absolute', zIndex: 2 }}>{busy}</div>}
+          {busy && <div className="busy-pill" style={{ position: 'absolute', zIndex: 2 }}>{busy}</div>}
           {error && !busy && !full && <div className="ph" style={{ color: 'var(--danger)' }}>{error}</div>}
           <div style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
             {vector && <img src={vector.url} alt="Vectorized" style={{ maxWidth: '100%', maxHeight: '100%', opacity: busy ? 0.4 : 1 }} />}

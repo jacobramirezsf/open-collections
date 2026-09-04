@@ -45,3 +45,5 @@
 9:49:14 AM [vite] (client) ✨ new dependencies optimized: @imgly/background-removal
 9:49:14 AM [vite] (client) ✨ optimized dependencies changed. reloading
 10:15:05 AM [vite] (client) hmr update /src/styles.css
+10:46:48 AM [vite] (client) hmr update /src/components/Editor.tsx
+10:46:48 AM [vite] (client) hmr update /src/styles.css
