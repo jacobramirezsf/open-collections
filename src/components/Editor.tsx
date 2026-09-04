@@ -26,6 +26,7 @@ const PREVIEW_MAX = 1800
 const SOURCE_MAX = 6000
 const EXPORT_MAX_PIXELS = 64e6
 const sheetCache = new Map<string, HTMLImageElement>()
+const isTouch = () => typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
 
 function toCanvas(img: HTMLImageElement | HTMLCanvasElement, maxEdge: number): HTMLCanvasElement {
   const w = img instanceof HTMLImageElement ? img.naturalWidth : img.width
@@ -528,7 +529,7 @@ export default function Editor({ item, onClose }: Props) {
         <span className="faint" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
         <span style={{ flex: 1 }} />
         {zoom > 1 && <button className="btn small" onClick={resetView}>{Math.round(zoom * 100)}% ↺</button>}
-        <button className="btn primary" onClick={vector ? shareEdit : exportPng} disabled={!full || !!busy}>Download</button>
+        <button className="btn primary" onClick={vector ? shareEdit : exportPng} disabled={!full || !!busy}>{isTouch() ? 'Save' : 'Download'}</button>
       </div>
       <div className="vbody">
         <div
@@ -757,7 +758,7 @@ export default function Editor({ item, onClose }: Props) {
 
           <h3>Export</h3>
           <div className="ctl">
-            <span className="label">PNG size</span>
+            <span className="label">Size</span>
             <select className="input" value={exportScale} onChange={(e) => setExportScale(Number(e.target.value))}>
               {exportOptions.map((o) => (
                 <option key={o.scale} value={o.scale}>{o.label}</option>
@@ -765,8 +766,7 @@ export default function Editor({ item, onClose }: Props) {
             </select>
           </div>
           <div className="actions">
-            <button className="btn primary" onClick={exportPng} disabled={!full || !!busy}>Download PNG</button>
-            <button className="btn" onClick={shareEdit} disabled={!full || !!busy} title="Opens the system share sheet — on a phone, Save Image sends it straight to your photos">Share / Photos</button>
+            <button className="btn primary" onClick={exportPng} disabled={!full || !!busy}>{isTouch() ? 'Save image' : 'Download PNG'}</button>
             <button className="btn" onClick={saveEdit} disabled={!full || !!busy} title="Keeps this edit on your Edits board with a link to the original work">Save to Edits</button>
             <button className="btn" onClick={exportSvg} disabled={!full || !!busy || !svgOk} title={svgOk ? 'Resolution-independent halftone for screenprint separations' : 'Vector SVG export is available when Halftone is the only texture'}>
               SVG
