@@ -154,8 +154,11 @@ jurisdictions are labeled “check jurisdiction”.
 
 ## Editor (Edit button on any image)
 
-Every image item has an **Edit** action in the viewer with three tools: **background removal**
-(remove.bg, `REMOVE_BG_KEY`), **halftone screening**, and **AI vectorization** (QuiverAI image→SVG,
+Every image item has an **Edit** action in the viewer: **background removal**
+(remove.bg, `REMOVE_BG_KEY`), a **texture rack** — halftone (with vector SVG export), dither,
+riso grain, stipple, glyphs, crosshatch, duotone/cyanotype, pixelate, paper grain — all classic
+print techniques implemented scale-aware in `src/lib/textures.ts` (client-side, transparency-aware,
+identical at preview and print resolution), and **AI vectorization** (QuiverAI image→SVG,
 `QUIVERAI_API_KEY` from platform.quiver.ai/api-keys, per-IP daily cap, `QUIVER_MODEL` defaults to
 arrow-1.1 — works on the original or on the background-removed cutout). The full-resolution image is loaded
 through the same-origin proxy, optionally sent through remove.bg (server-side, `/api/removebg`,

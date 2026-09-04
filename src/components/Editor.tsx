@@ -6,6 +6,7 @@ import type { Item } from '../../shared/types'
 import { proxyImageUrl } from '../lib/api'
 import { saveBlob } from '../lib/zip'
 import { computeScreen, renderScreen, screenToSvg, type HalftoneParams } from '../lib/halftone'
+import { EFFECTS, TEXTURE_DEFAULTS, applyTexture, effectDef, type EffectKind, type TextureParams } from '../lib/textures'
 
 interface Props {
   item: Item
@@ -13,6 +14,7 @@ interface Props {
 }
 
 const DEFAULTS: HalftoneParams = { on: true, cell: 8, angle: 22, shape: 'dot', gain: 1.15, ink: '#141414', paper: '#f3f1ec', invert: false }
+type Effect = 'none' | EffectKind
 const PREVIEW_MAX = 1800
 const SOURCE_MAX = 6000 // long-edge cap for the in-memory full-res source
 const EXPORT_MAX_PIXELS = 64e6 // ~64 MP canvas ceiling for PNG export
@@ -39,6 +41,8 @@ function loadImg(src: string): Promise<HTMLImageElement> {
 
 export default function Editor({ item, onClose }: Props) {
   const [params, setParams] = useState<HalftoneParams>(DEFAULTS)
+  const [effect, setEffect] = useState<Effect>('halftone')
+  const [tex, setTex] = useState<TextureParams>({ ...TEXTURE_DEFAULTS })
   const [full, setFull] = useState<HTMLCanvasElement | null>(null) // full-res working image
   const [preview, setPreview] = useState<HTMLCanvasElement | null>(null)
   const [originalFull, setOriginalFull] = useState<HTMLCanvasElement | null>(null)
@@ -89,7 +93,12 @@ export default function Editor({ item, onClose }: Props) {
     if (!preview || !canvasRef.current) return
     window.clearTimeout(renderTimer.current)
     renderTimer.current = window.setTimeout(() => {
-      const out = params.on ? renderScreen(computeScreen(preview, params, preview.width), params) : preview
+      const out =
+        effect === 'halftone'
+          ? renderScreen(computeScreen(preview, params, preview.width), params)
+          : effect === 'none'
+            ? preview
+            : applyTexture(effect, preview, tex, preview.width, 1)
       const c = canvasRef.current!
       c.width = out.width
       c.height = out.height
@@ -97,7 +106,7 @@ export default function Editor({ item, onClose }: Props) {
       ctx.clearRect(0, 0, c.width, c.height)
       ctx.drawImage(out, 0, 0)
     }, 60)
-  }, [preview, params])
+  }, [preview, params, effect, tex])
 
   const vectorize = useCallback(async () => {
     if (!full) return
@@ -149,6 +158,7 @@ export default function Editor({ item, onClose }: Props) {
       }
       setCutoutApplied(true)
       setParams((p) => ({ ...p, paper: 'transparent' }))
+      setTex((t) => ({ ...t, paper: 'transparent' }))
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -157,8 +167,8 @@ export default function Editor({ item, onClose }: Props) {
   }, [item.id, adopt])
 
   const baseName = useMemo(
-    () => `${item.source}-${item.id.split(':').pop()}-${params.on ? 'halftone' : cutoutApplied ? 'cutout' : 'edit'}`.replace(/[^a-zA-Z0-9._-]+/g, '-'),
-    [item, params.on, cutoutApplied],
+    () => `${item.source}-${item.id.split(':').pop()}-${effect !== 'none' ? effect : cutoutApplied ? 'cutout' : 'edit'}`.replace(/[^a-zA-Z0-9._-]+/g, '-'),
+    [item, effect, cutoutApplied],
   )
 
   // Export options: long-edge targets relative to the full-res source.
@@ -181,8 +191,10 @@ export default function Editor({ item, onClose }: Props) {
     setTimeout(() => {
       try {
         let target: HTMLCanvasElement
-        if (params.on) {
+        if (effect === 'halftone') {
           target = renderScreen(computeScreen(full, params, preview!.width), params, exportScale)
+        } else if (effect !== 'none') {
+          target = applyTexture(effect, full, tex, preview!.width, exportScale)
         } else if (exportScale === 1) {
           target = full
         } else {
@@ -204,10 +216,10 @@ export default function Editor({ item, onClose }: Props) {
         setError('Export failed (' + (e as Error).message + ') — try a smaller size.')
       }
     }, 30)
-  }, [full, preview, params, exportScale, baseName])
+  }, [full, preview, params, effect, tex, exportScale, baseName])
 
   const exportSvg = useCallback(() => {
-    if (!full || !params.on) return
+    if (!full || effect !== 'halftone') return
     setBusy('Building SVG…')
     setTimeout(() => {
       try {
@@ -219,7 +231,7 @@ export default function Editor({ item, onClose }: Props) {
         setBusy(null)
       }
     }, 30)
-  }, [full, preview, params, baseName])
+  }, [full, preview, params, effect, baseName])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -244,7 +256,7 @@ export default function Editor({ item, onClose }: Props) {
         )}
       </div>
       <div className="vbody">
-        <div className="stage" style={params.paper === 'transparent' ? checker : undefined}>
+        <div className="stage" style={(effect === 'halftone' ? params.paper : effect === 'none' ? (cutoutApplied ? 'transparent' : 'x') : tex.paper) === 'transparent' ? checker : undefined}>
           {busy && <div className="ph" style={{ position: 'absolute', zIndex: 2 }}>{busy}</div>}
           {error && !busy && !full && <div className="ph" style={{ color: 'var(--danger)' }}>{error}</div>}
           {vector && <img src={vector.url} alt="Vectorized" style={{ maxWidth: '100%', maxHeight: '100%', opacity: busy ? 0.4 : 1 }} />}
@@ -256,7 +268,7 @@ export default function Editor({ item, onClose }: Props) {
           <div className="actions">
             <button className="btn" onClick={removeBg} disabled={!!busy || cutoutApplied || !full}>{cutoutApplied ? 'Background removed ✓' : 'Remove background'}</button>
             {cutoutApplied && originalFull && (
-              <button className="btn" onClick={() => { adopt(originalFull); setCutoutApplied(false); setParams((p) => ({ ...p, paper: DEFAULTS.paper })) }}>
+              <button className="btn" onClick={() => { adopt(originalFull); setCutoutApplied(false); setParams((p) => ({ ...p, paper: DEFAULTS.paper })); setTex((t) => ({ ...t, paper: TEXTURE_DEFAULTS.paper })) }}>
                 Restore original
               </button>
             )}
@@ -287,10 +299,61 @@ export default function Editor({ item, onClose }: Props) {
             </>
           )}
 
-          <h3 style={{ opacity: vector ? 0.45 : 1 }}>Halftone</h3>
-          <label className="check" style={{ marginBottom: 8 }}>
-            <input type="checkbox" checked={params.on} onChange={(e) => set('on', e.target.checked)} /> Enable halftone
-          </label>
+          <h3 style={{ opacity: vector ? 0.45 : 1 }}>Texture</h3>
+          <div className="chips" style={{ marginBottom: 10 }}>
+            {(['none', ...EFFECTS.map((e) => e.key)] as Effect[]).map((k) => (
+              <button
+                key={k}
+                type="button"
+                className={'btn small' + (effect === k ? ' active' : '')}
+                onClick={() => {
+                  setEffect(k)
+                  if (k !== 'none' && k !== 'halftone') {
+                    const d = effectDef(k as EffectKind).defaults
+                    setTex((t) => ({ ...TEXTURE_DEFAULTS, ink: t.ink, paper: t.paper, ...d, ...(t.paper === 'transparent' ? { paper: 'transparent' } : {}) }))
+                  }
+                }}
+              >
+                {k === 'none' ? 'None' : k === 'halftone' ? 'Halftone' : effectDef(k as EffectKind).label}
+              </button>
+            ))}
+          </div>
+          {effect !== 'none' && effect !== 'halftone' && (
+            <>
+              {effectDef(effect as EffectKind).controls.map((c) => (
+                <div className="ctl" key={c.k}>
+                  <span className="label">{c.label} — {typeof tex[c.k] === 'number' ? (c.step < 1 ? (tex[c.k] as number).toFixed(2) : tex[c.k]) : ''}</span>
+                  <input type="range" min={c.min} max={c.max} step={c.step} value={tex[c.k] as number} onChange={(e) => setTex((t) => ({ ...t, [c.k]: Number(e.target.value) }))} />
+                </div>
+              ))}
+              {effectDef(effect as EffectKind).colors.length > 0 && (
+                <div className="ctl row">
+                  {effectDef(effect as EffectKind).colors.includes('ink') && (
+                    <div>
+                      <span className="label">Ink</span>
+                      <input type="color" value={tex.ink} onChange={(e) => setTex((t) => ({ ...t, ink: e.target.value }))} />
+                    </div>
+                  )}
+                  {effectDef(effect as EffectKind).colors.includes('paper') && (
+                    <div>
+                      <span className="label">Paper</span>
+                      <div className="row">
+                        <input type="color" value={tex.paper === 'transparent' ? '#ffffff' : tex.paper} disabled={tex.paper === 'transparent'} onChange={(e) => setTex((t) => ({ ...t, paper: e.target.value }))} />
+                        <label className="check"><input type="checkbox" checked={tex.paper === 'transparent'} onChange={(e) => setTex((t) => ({ ...t, paper: e.target.checked ? 'transparent' : TEXTURE_DEFAULTS.paper }))} /> transparent</label>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {effectDef(effect as EffectKind).invert && (
+                <label className="check" style={{ marginTop: 4 }}>
+                  <input type="checkbox" checked={tex.invert} onChange={(e) => setTex((t) => ({ ...t, invert: e.target.checked }))} /> Invert
+                </label>
+              )}
+            </>
+          )}
+          {effect === 'halftone' && (
+            <>
           <div className="ctl">
             <span className="label">Dot size — {params.cell}px</span>
             <input type="range" min={4} max={28} step={1} value={params.cell} onChange={(e) => set('cell', Number(e.target.value))} />
@@ -327,6 +390,8 @@ export default function Editor({ item, onClose }: Props) {
           <label className="check" style={{ marginTop: 8 }}>
             <input type="checkbox" checked={params.invert} onChange={(e) => set('invert', e.target.checked)} /> Invert
           </label>
+            </>
+          )}
 
           <h3>Export</h3>
           <div className="ctl">
@@ -339,10 +404,10 @@ export default function Editor({ item, onClose }: Props) {
           </div>
           <div className="actions">
             <button className="btn primary" onClick={exportPng} disabled={!full || !!busy}>Download PNG</button>
-            <button className="btn" onClick={exportSvg} disabled={!full || !!busy || !params.on} title={params.on ? 'Resolution-independent halftone for screenprint separations' : 'Enable halftone first'}>
+            <button className="btn" onClick={exportSvg} disabled={!full || !!busy || effect !== 'halftone'} title={effect === 'halftone' ? 'Resolution-independent halftone for screenprint separations' : 'Vector export is available for the Halftone texture'}>
               Download SVG (vector)
             </button>
-            <button className="btn" onClick={() => setParams(DEFAULTS)}>Reset</button>
+            <button className="btn" onClick={() => { setParams(DEFAULTS); setTex({ ...TEXTURE_DEFAULTS }); setEffect('halftone') }}>Reset</button>
           </div>
           <p className="faint" style={{ fontSize: 12, marginTop: 10 }}>
             PNG renders the screen at the chosen size; SVG is true vector (dots as shapes) and scales to any print size in Illustrator or Inkscape.
