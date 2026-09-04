@@ -35,6 +35,7 @@ export const PAPER_SHEETS: PaperSheet[] = [
   { slug: 'torn-beige', label: 'Torn beige', group: 'edge', ext: 'webp', edge: true },
   { slug: 'torn-white', label: 'Torn white', group: 'edge', ext: 'webp', edge: true },
   { slug: 'handmade-gray', label: 'Handmade rough', group: 'edge', ext: 'webp', edge: true },
+  { slug: 'ripped-kraft', label: 'Ripped kraft', group: 'edge', ext: 'webp', edge: true },
   // fabric
   { slug: 'denim', label: 'Denim', group: 'fabric' },
   { slug: 'red-handmade', label: 'Red fiber', group: 'fabric' },

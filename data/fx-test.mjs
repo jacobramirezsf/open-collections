@@ -38,7 +38,7 @@ await page.click('button:has-text("Thread paint")')
 await shoot('fx-threadpaint')
 
 // 3. thread paint + deckle sheet surface (overlay)
-await page.selectOption('select:has(option[value="img:deckle-white"])', 'img:deckle-white')
+await page.selectOption('select:has(option[value="img:ripped-kraft"])', 'img:ripped-kraft')
 await shoot('fx-deckle')
 
 // 4. fabric swatch background mode
