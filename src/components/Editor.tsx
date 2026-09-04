@@ -10,10 +10,11 @@ import { boardStore, EDITS_ID } from '../lib/boards'
 import { onAuthChange } from '../lib/account'
 import { computeScreen, renderScreen, screenToSvg, type HalftoneParams } from '../lib/halftone'
 import {
-  CMYK_CHANNELS, EFFECTS, PAPER_TEXTURES, TEXTURE_DEFAULTS, applyPaperTexture, applyTexture, asciiGrid,
+  CMYK_CHANNELS, EFFECTS, INK_PRESETS, PAPER_TEXTURES, TEXTURE_DEFAULTS, applyPaperTexture, applyTexture, asciiGrid,
   computeCmykScreens, effectDef, type EffectKind, type PaperTexture, type TextureParams,
 } from '../lib/textures'
 import { PAPER_SHEETS, paperUrl } from '../lib/papers'
+import { useBodyLock } from './Panels'
 
 interface Props {
   item: Item
@@ -48,11 +49,13 @@ function loadImg(src: string): Promise<HTMLImageElement> {
 }
 
 export default function Editor({ item, onClose }: Props) {
+  useBodyLock()
   const [params, setParams] = useState<HalftoneParams>(HT_DEFAULTS) // halftone-specific
   const [tex, setTex] = useState<TextureParams>({ ...TEXTURE_DEFAULTS }) // shared by other effects
   const [stack, setStack] = useState<EffectKind[]>(['halftone'])
   const [paperTex, setPaperTex] = useState<string>('none') // PaperTexture or 'img:<slug>'
   const [sheet, setSheet] = useState<HTMLImageElement | null>(null)
+  const [sheetMode, setSheetMode] = useState<'ink' | 'behind'>('ink')
   const [full, setFull] = useState<HTMLCanvasElement | null>(null)
   const [preview, setPreview] = useState<HTMLCanvasElement | null>(null)
   const [originalFull, setOriginalFull] = useState<HTMLCanvasElement | null>(null)
@@ -160,7 +163,7 @@ export default function Editor({ item, onClose }: Props) {
         const sh = sheet.naturalHeight
         const cover = Math.max(out.width / sw, out.height / sh)
         ctx.drawImage(sheet, (out.width - sw * cover) / 2, (out.height - sh * cover) / 2, sw * cover, sh * cover)
-        ctx.globalCompositeOperation = 'multiply'
+        ctx.globalCompositeOperation = sheetMode === 'ink' ? 'multiply' : 'source-over'
         ctx.drawImage(cur, 0, 0)
         ctx.globalCompositeOperation = 'source-over'
         cur = out
@@ -169,7 +172,7 @@ export default function Editor({ item, onClose }: Props) {
       }
       return cur
     },
-    [stack, params, tex, paperTex, sheet, preview],
+    [stack, params, tex, paperTex, sheet, sheetMode, preview],
   )
 
   // debounced preview render
@@ -196,7 +199,8 @@ export default function Editor({ item, onClose }: Props) {
       if (s.includes(k)) return s.filter((x) => x !== k)
       if (k !== 'halftone') {
         const d = effectDef(k).defaults
-        setTex((t) => ({ ...t, ...Object.fromEntries(Object.entries(d).filter(([key]) => !['ink', 'ink2', 'paper'].includes(key))) }))
+        const keep = k === 'riso4' ? ['paper'] : ['ink', 'ink2', 'ink3', 'ink4', 'paper']
+        setTex((t) => ({ ...t, ...Object.fromEntries(Object.entries(d).filter(([key]) => !keep.includes(key))) }))
       }
       return [...s, k]
     })
@@ -289,14 +293,21 @@ export default function Editor({ item, onClose }: Props) {
       try {
         const blob = await renderExport()
         if (!blob) throw new Error('render failed')
-        saveBlob(blob, `${baseName}.png`)
+        const file = new File([blob], `${baseName}.png`, { type: 'image/png' })
+        // Touch browsers drop the tap's user-activation during the long render, which silently kills
+        // anchor downloads — the share sheet (Save Image / Save to Files) still works there.
+        if (matchMedia('(pointer: coarse)').matches && navigator.canShare?.({ files: [file] })) {
+          await navigator.share({ files: [file], title: item.title }).catch(() => saveBlob(blob, file.name))
+        } else {
+          saveBlob(blob, file.name)
+        }
       } catch (e) {
         setError('Export failed (' + (e as Error).message + ') — try a smaller size.')
       } finally {
         setBusy(null)
       }
     }, 30)
-  }, [renderExport, baseName])
+  }, [renderExport, baseName, item.title])
 
   const shareEdit = useCallback(() => {
     setBusy('Preparing image…')
@@ -324,9 +335,18 @@ export default function Editor({ item, onClose }: Props) {
       try {
         let url: string
         if (user) {
-          const blob = await renderExport()
+          // the request body must stay under the platform's 4.5 MB cap — encode a bounded rendition
+          // (full-resolution output is always available via Download)
+          const transparent = (paperTex.startsWith('img:') ? false : (stack.includes('halftone') && stack.length === 1 ? params.paper : tex.paper) === 'transparent') || (!stack.length && cutoutApplied)
+          const mime = transparent ? 'image/png' : 'image/jpeg'
+          let blob: Blob | null = null
+          for (const edge of [2000, 1600, 1280, 1000]) {
+            const c = buildOutput(toCanvas(full!, edge), 1)
+            blob = await new Promise<Blob | null>((r) => c.toBlob(r, mime, 0.88))
+            if (blob && blob.size <= 4_200_000) break
+          }
           if (!blob) throw new Error('render failed')
-          const res = await fetch('/api/upload-edit', { method: 'POST', headers: { 'content-type': 'image/png' }, body: blob })
+          const res = await fetch('/api/upload-edit', { method: 'POST', headers: { 'content-type': mime }, body: blob })
           const payload = await res.json().catch(() => null)
           if (!res.ok) throw new Error(payload?.error || `Save failed (${res.status})`)
           url = payload.url
@@ -371,7 +391,7 @@ export default function Editor({ item, onClose }: Props) {
         setBusy(null)
       }
     }, 30)
-  }, [user, renderExport, buildOutput, full, stack, vector, item, say])
+  }, [user, renderExport, buildOutput, full, stack, vector, item, say, cutoutApplied, paperTex, params.paper, tex.paper])
 
   const exportSvg = useCallback(() => {
     if (!full || !(stack.length === 1 && stack[0] === 'halftone')) return
@@ -550,6 +570,30 @@ export default function Editor({ item, onClose }: Props) {
                   <input type="color" value={tex.ink2} onChange={(e) => setTex((t) => ({ ...t, ink2: e.target.value }))} />
                 </div>
               )}
+              {colorSlots.includes('ink3') && (
+                <div>
+                  <span className="label">Ink 3</span>
+                  <input type="color" value={tex.ink3} onChange={(e) => setTex((t) => ({ ...t, ink3: e.target.value }))} />
+                </div>
+              )}
+              {colorSlots.includes('ink4') && (
+                <div>
+                  <span className="label">Ink 4</span>
+                  <input type="color" value={tex.ink4} onChange={(e) => setTex((t) => ({ ...t, ink4: e.target.value }))} />
+                </div>
+              )}
+              {stack.includes('riso4') && (
+                <div>
+                  <span className="label">Ink presets</span>
+                  <div className="row" style={{ gap: 4 }}>
+                    {INK_PRESETS.map((pr) => (
+                      <button key={pr.name} type="button" className="btn small" onClick={() => setTex((t) => ({ ...t, ink: pr.inks[0], ink2: pr.inks[1], ink3: pr.inks[2], ink4: pr.inks[3] }))}>
+                        {pr.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {stack.length > 0 && (
                 <>
                   <div>
@@ -593,6 +637,15 @@ export default function Editor({ item, onClose }: Props) {
                       </optgroup>
                     </select>
                   </div>
+                  {paperTex.startsWith('img:') && (
+                    <div>
+                      <span className="label">Paper mode</span>
+                      <div className="seg">
+                        <button type="button" className={sheetMode === 'ink' ? 'active' : ''} onClick={() => setSheetMode('ink')} title="Artwork multiplies into the paper like ink on stock">ink</button>
+                        <button type="button" className={sheetMode === 'behind' ? 'active' : ''} onClick={() => setSheetMode('behind')} title="Paper sits behind the artwork as a background">behind</button>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
               {showInvert && (

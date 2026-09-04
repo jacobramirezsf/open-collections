@@ -3,6 +3,7 @@ import type { Item } from '../../shared/types'
 import { downloadUrl, proxyImageUrl } from '../lib/api'
 import { downloadItem, triggerDownload } from '../lib/zip'
 import { ModelIcon } from './Grid'
+import { useBodyLock } from './Panels'
 import Editor from './Editor'
 
 interface Props {
@@ -27,6 +28,7 @@ function rightsClass(item: Item) {
 }
 
 export default function Viewer({ items, index, onClose, onNav, onSave, onSimilar, isFavorite, onFavorite }: Props) {
+  useBodyLock()
   const item = items[index]
   const [src, setSrc] = useState<string | null>(null)
   const [failed, setFailed] = useState(0) // 0 = viewer image, 1 = thumb, 2 = proxy, 3 = give up

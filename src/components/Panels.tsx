@@ -3,7 +3,21 @@ import type { Item, SourceInfo } from '../../shared/types'
 import { FAVORITES_ID, type Board } from '../lib/boards'
 import type { Query } from '../lib/api'
 
+export function useBodyLock() {
+  useEffect(() => {
+    document.body.classList.add('locked')
+    const n = (Number(document.body.dataset.locks) || 0) + 1
+    document.body.dataset.locks = String(n)
+    return () => {
+      const left = (Number(document.body.dataset.locks) || 1) - 1
+      document.body.dataset.locks = String(left)
+      if (left <= 0) document.body.classList.remove('locked')
+    }
+  }, [])
+}
+
 export function SidePanel({ title, onClose, children, extra }: { title: string; onClose: () => void; children: React.ReactNode; extra?: React.ReactNode }) {
+  useBodyLock()
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
@@ -95,6 +109,7 @@ export function StatusPanel({ sources, builtAt, disabled, onToggle, onClose, hea
 export function SaveToBoard({ boards, anchor, onPick, onCreate, onClose }: { boards: Board[]; anchor: HTMLElement | null; onPick: (b: Board) => void; onCreate: (name: string) => void; onClose: () => void }) {
   const [name, setName] = useState('')
   const ref = useRef<HTMLDivElement>(null)
+  useBodyLock()
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose()
@@ -112,7 +127,9 @@ export function SaveToBoard({ boards, anchor, onPick, onCreate, onClose }: { boa
     ? { top: Math.min(window.innerHeight - 320, r.bottom + 6), left: Math.max(8, Math.min(window.innerWidth - 290, r.left)) }
     : { top: '40%', left: 'calc(50% - 140px)' }
   return (
-    <div className="pop" style={style} ref={ref}>
+    <>
+      <div className="backdrop" style={{ zIndex: 75 }} onClick={onClose} />
+      <div className="pop" style={style} ref={ref}>
       <span className="label">Save to board</span>
       <div className="list">
         {boards.length === 0 && <div className="faint" style={{ padding: 6, fontSize: 13 }}>No boards yet — create one below.</div>}
@@ -128,10 +145,11 @@ export function SaveToBoard({ boards, anchor, onPick, onCreate, onClose }: { boa
           if (name.trim()) onCreate(name)
         }}
       >
-        <input className="input" placeholder="New board…" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+        <input className="input" placeholder="New board…" value={name} onChange={(e) => setName(e.target.value)} />
         <button className="btn" type="submit">Add</button>
       </form>
-    </div>
+      </div>
+    </>
   )
 }
 

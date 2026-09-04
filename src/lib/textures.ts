@@ -13,7 +13,9 @@ export interface TextureParams {
   levels: number // posterize levels where relevant
   angle: number
   ink: string
-  ink2: string // second ink (riso duo)
+  ink2: string // second ink (riso duo / riso 4)
+  ink3: string
+  ink4: string
   paper: string // css color or 'transparent'
   invert: boolean
   colorize: boolean // ascii: sample glyph color from the image
@@ -31,13 +33,13 @@ export interface EffectDef {
   key: EffectKind
   label: string
   controls: ControlDef[]
-  colors: ('ink' | 'ink2' | 'paper')[]
+  colors: ('ink' | 'ink2' | 'ink3' | 'ink4' | 'paper')[]
   invert?: boolean
   colorize?: boolean
   defaults: Partial<TextureParams>
 }
 
-export const TEXTURE_DEFAULTS: TextureParams = { size: 6, amount: 0.7, levels: 4, angle: 22, ink: '#141414', ink2: '#e4572e', paper: '#f3f1e8', invert: false, colorize: false }
+export const TEXTURE_DEFAULTS: TextureParams = { size: 6, amount: 0.7, levels: 4, angle: 22, ink: '#141414', ink2: '#e4572e', ink3: '#ff48b0', ink4: '#ffe800', paper: '#f3f1e8', invert: false, colorize: false }
 
 export const EFFECTS: EffectDef[] = [
   { key: 'halftone', label: 'Halftone', controls: [], colors: [], defaults: {} }, // handled by the dedicated halftone module
@@ -141,8 +143,8 @@ export const EFFECTS: EffectDef[] = [
       { k: 'amount', label: 'Grain', min: 0, max: 1, step: 0.05 },
       { k: 'size', label: 'Misregistration', min: 0, max: 12, step: 1 },
     ],
-    colors: ['paper'],
-    defaults: { amount: 0.5, size: 3, paper: '#f5f2e9' },
+    colors: ['ink', 'ink2', 'ink3', 'ink4', 'paper'],
+    defaults: { amount: 0.5, size: 3, paper: '#f5f2e9', ink: '#151515', ink2: '#0078bf', ink3: '#ff48b0', ink4: '#ffe800' },
   },
   {
     key: 'stitch',
@@ -740,11 +742,12 @@ function renderGradient(work: HTMLCanvasElement, p: TextureParams): HTMLCanvasEl
 
 // ---------------------------------------------------------------------------
 // Riso 4-color: automatic CMYK separation printed as grainy riso ink layers with misregistration.
-export const RISO_INKS: { ch: 'c' | 'm' | 'y' | 'k'; color: string; name: string }[] = [
-  { ch: 'y', color: '#ffe800', name: 'Yellow' },
-  { ch: 'm', color: '#ff48b0', name: 'Fluor Pink' },
-  { ch: 'c', color: '#0078bf', name: 'Blue' },
-  { ch: 'k', color: '#151515', name: 'Black' },
+// ink slots map to separation channels: ink → K (darks), ink2 → C, ink3 → M, ink4 → Y
+export const INK_PRESETS: { name: string; inks: [string, string, string, string] }[] = [
+  { name: 'Riso', inks: ['#151515', '#0078bf', '#ff48b0', '#ffe800'] },
+  { name: 'CMYK', inks: ['#141414', '#00aeef', '#ec008c', '#ffee00'] },
+  { name: 'Warm', inks: ['#3d2b1f', '#d1495b', '#e4572e', '#f4d35e'] },
+  { name: 'Cool', inks: ['#1a1c2c', '#136f63', '#3a6ea5', '#b8d8d8'] },
 ]
 
 function renderRiso4(work: HTMLCanvasElement, p: TextureParams, offsetPx: number): HTMLCanvasElement {
@@ -755,7 +758,13 @@ function renderRiso4(work: HTMLCanvasElement, p: TextureParams, offsetPx: number
   const { canvas, ctx } = makeOut(w, h, p.paper === 'transparent' ? p.paper : p.paper)
   if (p.paper !== 'transparent') ctx.globalCompositeOperation = 'multiply'
   const offsets: Record<string, [number, number]> = { y: [offsetPx * 0.6, -offsetPx * 0.3], m: [-offsetPx * 0.5, offsetPx * 0.5], c: [offsetPx * 0.35, offsetPx * 0.55], k: [0, 0] }
-  for (const { ch, color } of RISO_INKS) {
+  const inkOf: Record<string, string> = { k: p.ink, c: p.ink2, m: p.ink3, y: p.ink4 }
+  for (const { ch, color } of [
+    { ch: 'y' as const, color: inkOf.y },
+    { ch: 'm' as const, color: inkOf.m },
+    { ch: 'c' as const, color: inkOf.c },
+    { ch: 'k' as const, color: inkOf.k },
+  ]) {
     const layer = document.createElement('canvas')
     layer.width = w
     layer.height = h
