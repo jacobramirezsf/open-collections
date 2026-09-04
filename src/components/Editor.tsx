@@ -13,6 +13,7 @@ import {
   CMYK_CHANNELS, EFFECTS, PAPER_TEXTURES, TEXTURE_DEFAULTS, applyPaperTexture, applyTexture, asciiGrid,
   computeCmykScreens, effectDef, type EffectKind, type PaperTexture, type TextureParams,
 } from '../lib/textures'
+import { PAPER_SHEETS, paperUrl } from '../lib/papers'
 
 interface Props {
   item: Item
@@ -23,6 +24,7 @@ const HT_DEFAULTS: HalftoneParams = { on: true, cell: 8, angle: 22, shape: 'dot'
 const PREVIEW_MAX = 1800
 const SOURCE_MAX = 6000
 const EXPORT_MAX_PIXELS = 64e6
+const sheetCache = new Map<string, HTMLImageElement>()
 
 function toCanvas(img: HTMLImageElement | HTMLCanvasElement, maxEdge: number): HTMLCanvasElement {
   const w = img instanceof HTMLImageElement ? img.naturalWidth : img.width
@@ -49,7 +51,8 @@ export default function Editor({ item, onClose }: Props) {
   const [params, setParams] = useState<HalftoneParams>(HT_DEFAULTS) // halftone-specific
   const [tex, setTex] = useState<TextureParams>({ ...TEXTURE_DEFAULTS }) // shared by other effects
   const [stack, setStack] = useState<EffectKind[]>(['halftone'])
-  const [paperTex, setPaperTex] = useState<PaperTexture>('none')
+  const [paperTex, setPaperTex] = useState<string>('none') // PaperTexture or 'img:<slug>'
+  const [sheet, setSheet] = useState<HTMLImageElement | null>(null)
   const [full, setFull] = useState<HTMLCanvasElement | null>(null)
   const [preview, setPreview] = useState<HTMLCanvasElement | null>(null)
   const [originalFull, setOriginalFull] = useState<HTMLCanvasElement | null>(null)
@@ -70,6 +73,26 @@ export default function Editor({ item, onClose }: Props) {
   const panBase = useRef<{ x: number; y: number; px: number; py: number } | null>(null)
 
   useEffect(() => onAuthChange((s) => setUser(s.user)), [])
+  useEffect(() => {
+    if (!paperTex.startsWith('img:')) {
+      setSheet(null)
+      return
+    }
+    const slug = paperTex.slice(4)
+    const cached = sheetCache.get(slug)
+    if (cached) {
+      setSheet(cached)
+      return
+    }
+    let dead = false
+    loadImg(paperUrl(slug)).then((img) => {
+      sheetCache.set(slug, img)
+      if (!dead) setSheet(img)
+    }).catch(() => {})
+    return () => {
+      dead = true
+    }
+  }, [paperTex])
   const say = useCallback((m: string) => {
     setToast(m)
     setTimeout(() => setToast(null), 2800)
@@ -121,13 +144,32 @@ export default function Editor({ item, onClose }: Props) {
         cur = c
       }
       const pw = preview?.width || base.width
+      const useSheet = paperTex.startsWith('img:') && sheet
+      const htP = useSheet ? { ...params, paper: 'transparent' } : params
+      const texP = useSheet ? { ...tex, paper: 'transparent' } : tex
       for (const k of stack) {
-        cur = k === 'halftone' ? renderScreen(computeScreen(cur, params, pw), params) : applyTexture(k, cur, tex, pw, 1)
+        cur = k === 'halftone' ? renderScreen(computeScreen(cur, htP, pw), htP) : applyTexture(k, cur, texP, pw, 1)
       }
-      if (stack.length && paperTex !== 'none') cur = applyPaperTexture(cur === base ? toCanvas(base, 1e9) : cur, paperTex, cur.width / pw)
+      if (useSheet) {
+        // the sheet becomes the page; the effect output is multiplied over it like ink on stock
+        const out = document.createElement('canvas')
+        out.width = cur.width
+        out.height = cur.height
+        const ctx = out.getContext('2d')!
+        const sw = sheet.naturalWidth
+        const sh = sheet.naturalHeight
+        const cover = Math.max(out.width / sw, out.height / sh)
+        ctx.drawImage(sheet, (out.width - sw * cover) / 2, (out.height - sh * cover) / 2, sw * cover, sh * cover)
+        ctx.globalCompositeOperation = 'multiply'
+        ctx.drawImage(cur, 0, 0)
+        ctx.globalCompositeOperation = 'source-over'
+        cur = out
+      } else if (stack.length && paperTex !== 'none') {
+        cur = applyPaperTexture(cur === base ? toCanvas(base, 1e9) : cur, paperTex as PaperTexture, cur.width / pw)
+      }
       return cur
     },
-    [stack, params, tex, paperTex, preview],
+    [stack, params, tex, paperTex, sheet, preview],
   )
 
   // debounced preview render
@@ -538,10 +580,17 @@ export default function Editor({ item, onClose }: Props) {
                   </div>
                   <div>
                     <span className="label">Surface</span>
-                    <select className="input" style={{ width: 'auto' }} value={paperTex} onChange={(e) => setPaperTex(e.target.value as PaperTexture)}>
-                      {PAPER_TEXTURES.map((t) => (
-                        <option key={t.key} value={t.key}>{t.label}</option>
-                      ))}
+                    <select className="input" style={{ width: 'auto' }} value={paperTex} onChange={(e) => setPaperTex(e.target.value)}>
+                      <optgroup label="Finish">
+                        {PAPER_TEXTURES.map((t) => (
+                          <option key={t.key} value={t.key}>{t.label}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Papers">
+                        {PAPER_SHEETS.map((t) => (
+                          <option key={t.slug} value={'img:' + t.slug}>{t.label}</option>
+                        ))}
+                      </optgroup>
                     </select>
                   </div>
                 </>
@@ -641,7 +690,7 @@ export default function Editor({ item, onClose }: Props) {
                 Plates
               </button>
             )}
-            <button className="btn" onClick={() => { setParams(HT_DEFAULTS); setTex({ ...TEXTURE_DEFAULTS }); setStack(['halftone']); setPaperTex('none'); resetView() }}>Reset</button>
+            <button className="btn" onClick={() => { setParams(HT_DEFAULTS); setTex({ ...TEXTURE_DEFAULTS }); setStack(['halftone']); setPaperTex('none'); setSheet(null); resetView() }}>Reset</button>
           </div>
           <p className="faint hide-mobile" style={{ fontSize: 12, marginTop: 10 }}>
             Tap texture chips to stack effects in order; tap again to remove. “Save to Edits” keeps the edit on a board with a link to the original work.
