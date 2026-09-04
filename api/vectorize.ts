@@ -42,7 +42,7 @@ export default handler(async (req: Request) => {
   void params
   if (req.method !== 'POST') return error('POST only', 405)
   const key = process.env.QUIVERAI_API_KEY
-  if (!key) return error('Vectorization is not configured (missing QUIVERAI_API_KEY — create one at platform.quiver.ai/api-keys).', 501)
+  if (!key) return error('Vectorization is not configured.', 501)
   const text = await req.text()
   if (text.length > 9_000_000) return error('Image too large to vectorize.', 413)
   let body: any
@@ -81,11 +81,11 @@ export default handler(async (req: Request) => {
     /* non-JSON error */
   }
   if (!res.ok) {
-    const msg = payload?.error?.message || payload?.message || `QuiverAI error (${res.status})`
-    return error(res.status === 402 ? 'QuiverAI is out of credits.' : msg, 502)
+    const msg = payload?.error?.message || payload?.message || `Vectorization error (${res.status})`
+    return error(res.status === 402 ? 'Vectorization is temporarily unavailable.' : msg, 502)
   }
   const svg = payload?.data?.[0]?.svg
-  if (!svg || typeof svg !== 'string') return error('QuiverAI returned no SVG.', 502)
+  if (!svg || typeof svg !== 'string') return error('Vectorization failed.', 502)
   return json(
     { svg, sandbox: svg.includes('data-quiver-sandbox') || res.headers.get('x-quiver-environment') === 'test', credits: payload?.credits ?? null },
     { headers: { 'cache-control': 'no-store' } },

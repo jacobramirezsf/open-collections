@@ -42,7 +42,7 @@ async function quota(ip: string): Promise<{ ok: boolean; used: number }> {
 export default handler(async (req: Request) => {
   if (req.method !== 'POST') return error('POST only', 405)
   const key = process.env.REMOVE_BG_KEY
-  if (!key) return error('Background removal is not configured (missing REMOVE_BG_KEY).', 501)
+  if (!key) return error('Background removal is not configured.', 501)
   let body: any
   try {
     body = await req.json()
@@ -64,14 +64,14 @@ export default handler(async (req: Request) => {
     body: JSON.stringify({ image_url: imageUrl, size: 'auto', format: 'png' }),
   })
   if (!res.ok) {
-    let msg = `remove.bg error (${res.status})`
+    let msg = `Background removal error (${res.status})`
     try {
       const e = (await res.json()) as any
       msg = e?.errors?.[0]?.title || msg
     } catch {
       /* binary/none */
     }
-    if (res.status === 402) msg = 'remove.bg is out of credits.'
+    if (res.status === 402) msg = 'Background removal is temporarily unavailable.'
     return json({ error: msg }, { status: res.status === 402 || res.status === 403 ? 502 : 502, headers: { 'cache-control': 'no-store' } })
   }
   return new Response(res.body, {

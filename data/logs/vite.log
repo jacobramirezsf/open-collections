@@ -18,3 +18,11 @@
 8:09:58 PM [vite] (client) hmr update /src/components/Viewer.tsx
 8:09:58 PM [vite] (client) hmr update /src/App.tsx
 8:10:38 PM [vite] (client) hmr update /src/App.tsx, /src/components/Panels.tsx
+8:33:55 PM [vite] (client) hmr update /src/components/Editor.tsx
+8:34:21 PM [vite] (client) hmr update /src/styles.css
+8:36:34 PM [vite] (client) hmr update /src/styles.css
+8:36:34 PM [vite] (client) hmr update /src/components/Editor.tsx
+8:37:47 PM [vite] (client) hmr update /src/styles.css
+8:43:05 PM [vite] (client) hmr update /src/styles.css
+8:43:45 PM [vite] (client) hmr update /src/App.tsx
+8:43:45 PM [vite] (client) hmr update /src/styles.css

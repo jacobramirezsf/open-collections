@@ -353,6 +353,7 @@ export default function App() {
             </button>
           )}
         </div>
+        <div className="statusline hide-desktop">{statusText()}</div>
         {showFilters && tool === 'museums' && (
           <Filters
             draft={draft}

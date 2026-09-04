@@ -110,7 +110,7 @@ export default function Editor({ item, onClose }: Props) {
 
   const vectorize = useCallback(async () => {
     if (!full) return
-    setBusy('Vectorizing with QuiverAI… (can take ~30s)')
+    setBusy('Vectorizing… (can take ~30s)')
     setError(null)
     try {
       // untouched original → let the server pass the image URL; edited (cutout) → send the pixels
@@ -264,8 +264,8 @@ export default function Editor({ item, onClose }: Props) {
         </div>
         <div className="info">
           {error && full && <p style={{ color: 'var(--danger)', marginTop: 0, fontSize: 13 }}>{error}</p>}
-          <h3 style={{ marginTop: 0 }}>Image</h3>
-          <div className="actions">
+          <h3 className="sec-image-h" style={{ marginTop: 0 }}>Image</h3>
+          <div className="actions sec-image">
             <button className="btn" onClick={removeBg} disabled={!!busy || cutoutApplied || !full}>{cutoutApplied ? 'Background removed ✓' : 'Remove background'}</button>
             {cutoutApplied && originalFull && (
               <button className="btn" onClick={() => { adopt(originalFull); setCutoutApplied(false); setParams((p) => ({ ...p, paper: DEFAULTS.paper })); setTex((t) => ({ ...t, paper: TEXTURE_DEFAULTS.paper })) }}>
@@ -273,16 +273,17 @@ export default function Editor({ item, onClose }: Props) {
               </button>
             )}
           </div>
-          <p className="faint" style={{ fontSize: 12, margin: '6px 0 0' }}>
-            {full ? `Source ${full.width} × ${full.height}px. ` : ''}Background removal uses remove.bg (rate-limited; spends credits).
+          <p className="faint hide-mobile" style={{ fontSize: 12, margin: '6px 0 0' }}>
+            {full ? `Source ${full.width} × ${full.height}px. ` : ''}Automatic background removal (rate-limited).
           </p>
 
-          <h3>Vectorize (AI)</h3>
+          <h3 className="sec-vector-h">Vectorize</h3>
+          <div className="sec-vector">
           {!vector ? (
             <>
-              <button className="btn" onClick={vectorize} disabled={!full || !!busy}>Vectorize with QuiverAI</button>
-              <p className="faint" style={{ fontSize: 12, margin: '6px 0 0' }}>
-                Redraws the {cutoutApplied ? 'cutout' : 'image'} as clean, editable SVG shapes (rate-limited; spends credits).
+              <button className="btn" onClick={vectorize} disabled={!full || !!busy}>Vectorize</button>
+              <p className="faint hide-mobile" style={{ fontSize: 12, margin: '6px 0 0' }}>
+                Redraws the {cutoutApplied ? 'cutout' : 'image'} as clean, editable vector shapes (rate-limited).
               </p>
             </>
           ) : (
@@ -293,14 +294,22 @@ export default function Editor({ item, onClose }: Props) {
                 </button>
                 <button className="btn" onClick={() => { URL.revokeObjectURL(vector.url); setVector(null) }}>Back to bitmap</button>
               </div>
-              <p className="faint" style={{ fontSize: 12, margin: '6px 0 0' }}>
-                {vector.sandbox ? 'Test-key result (watermarked mock) — add a live QuiverAI key for real output.' : 'AI-drawn vector — editable shapes, scales to any size.'}
+              <p className="faint hide-mobile" style={{ fontSize: 12, margin: '6px 0 0' }}>
+                {vector.sandbox ? 'Preview-mode result — full-quality vectorization is not enabled yet.' : 'Editable vector shapes — scales to any size.'}
               </p>
             </>
           )}
+          </div>
 
           <h3 style={{ opacity: vector ? 0.45 : 1 }}>Texture</h3>
           <div className="chips" style={{ marginBottom: 10 }}>
+            <button type="button" className={'btn small mobile-only' + (cutoutApplied ? ' active' : '')} disabled={!!busy || !full} onClick={() => { if (!cutoutApplied) void removeBg(); else if (originalFull) { adopt(originalFull); setCutoutApplied(false); setParams((pp) => ({ ...pp, paper: DEFAULTS.paper })); setTex((t) => ({ ...t, paper: TEXTURE_DEFAULTS.paper })) } }}>
+              {cutoutApplied ? 'Cutout ✓' : 'Cutout'}
+            </button>
+            <button type="button" className={'btn small mobile-only' + (vector ? ' active' : '')} disabled={!!busy || !full} onClick={() => { if (vector) { URL.revokeObjectURL(vector.url); setVector(null) } else void vectorize() }}>
+              Vectorize
+            </button>
+            <span className="chip-div mobile-only" />
             {(['none', ...EFFECTS.map((e) => e.key)] as Effect[]).map((k) => (
               <button
                 key={k}
@@ -319,7 +328,7 @@ export default function Editor({ item, onClose }: Props) {
             ))}
           </div>
           {effect !== 'none' && effect !== 'halftone' && (
-            <>
+            <div className="controls-wrap">
               {effectDef(effect as EffectKind).controls.map((c) => (
                 <div className="ctl" key={c.k}>
                   <span className="label">{c.label} — {typeof tex[c.k] === 'number' ? (c.step < 1 ? (tex[c.k] as number).toFixed(2) : tex[c.k]) : ''}</span>
@@ -361,10 +370,10 @@ export default function Editor({ item, onClose }: Props) {
                   <input type="checkbox" checked={tex.colorize} onChange={(e) => setTex((t) => ({ ...t, colorize: e.target.checked }))} /> Color from image
                 </label>
               )}
-            </>
+            </div>
           )}
           {effect === 'halftone' && (
-            <>
+            <div className="controls-wrap">
           <div className="ctl">
             <span className="label">Dot size — {params.cell}px</span>
             <input type="range" min={4} max={28} step={1} value={params.cell} onChange={(e) => set('cell', Number(e.target.value))} />
@@ -401,7 +410,7 @@ export default function Editor({ item, onClose }: Props) {
           <label className="check" style={{ marginTop: 8 }}>
             <input type="checkbox" checked={params.invert} onChange={(e) => set('invert', e.target.checked)} /> Invert
           </label>
-            </>
+            </div>
           )}
 
           <h3>Export</h3>
@@ -452,10 +461,10 @@ export default function Editor({ item, onClose }: Props) {
             )}
             <button className="btn" onClick={() => { setParams(DEFAULTS); setTex({ ...TEXTURE_DEFAULTS }); setEffect('halftone') }}>Reset</button>
           </div>
-          <p className="faint" style={{ fontSize: 12, marginTop: 10 }}>
+          <p className="faint hide-mobile" style={{ fontSize: 12, marginTop: 10 }}>
             PNG renders the screen at the chosen size; SVG is true vector (dots as shapes) and scales to any print size in Illustrator or Inkscape.
           </p>
-          <p className="faint" style={{ fontSize: 12, marginTop: 10 }}>
+          <p className="faint hide-mobile" style={{ fontSize: 12, marginTop: 10 }}>
             {item.rightsLabel === 'CC0' || item.publicDomain ? 'This work is open access — remix freely.' : 'Check the rights on the original record before publishing edits.'}
           </p>
         </div>

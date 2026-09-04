@@ -14,3 +14,4 @@ data/*.gz
 .DS_Store
 .env*
 data/*.building*
+tests/
