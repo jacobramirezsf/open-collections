@@ -79,7 +79,7 @@ export function createLocalBoardStore(): BoardStore {
   let boards = withFavorites(load())
   const listeners = new Set<() => void>()
   const commit = () => {
-    boards = boards.slice() // new identity for React
+    boards = withFavorites(boards) // keeps Favorites pinned first + new identity for React
     save(boards)
     listeners.forEach((l) => l())
   }

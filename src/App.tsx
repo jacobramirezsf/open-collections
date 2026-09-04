@@ -66,7 +66,6 @@ export default function App() {
   const [similarProgress, setSimilarProgress] = useState<string | null>(null)
   const boards = useBoards()
   const abortRef = useRef<AbortController | null>(null)
-  const savedIds = useMemo(() => new Set(boards.flatMap((b) => b.items.map((i) => i.id))), [boards])
 
   const say = useCallback((msg: string) => {
     setToast(msg)
@@ -461,7 +460,6 @@ export default function App() {
           onNav={setViewerIndex}
           onSave={(item, anchor) => openSave([item], anchor)}
           onSimilar={similarTo}
-          isSaved={(id) => savedIds.has(id)}
           isFavorite={(id) => favIds.has(id)}
           onFavorite={toggleFavorite}
         />
