@@ -109,6 +109,7 @@ export default function App() {
       try {
         const res = tool === 'patents' ? await searchPatents(q, off, ctrl.signal) : await search(q, off, seed, ctrl.signal)
         if (ctrl.signal.aborted) return
+        if (!more) window.scrollTo(0, 0)
         setItems((prev) => {
           if (!more) return res.items
           const have = new Set(prev.map((i) => i.id))
