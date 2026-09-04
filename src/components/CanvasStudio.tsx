@@ -64,11 +64,6 @@ export default function CanvasStudio({ id, onClose }: Props) {
 
   useEffect(() => onAuthChange((s) => setUser(s.user)), [])
   useEffect(() => canvasStore.subscribe(() => setDoc(canvasStore.get(id) ?? null)), [id])
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
 
   const say = useCallback((m: string) => {
     setToast(m)
@@ -313,6 +308,69 @@ export default function CanvasStudio({ id, onClose }: Props) {
     canvasStore.update(id, { pieces })
   }
 
+  // ---- desktop: keyboard shortcuts ----
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return
+      if (e.key === 'Escape') {
+        if (picker || menu) return // their backdrops handle it
+        if (selected) setSelected(null)
+        else onClose()
+        return
+      }
+      const mod = e.metaKey || e.ctrlKey
+      if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return }
+      if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return }
+      if (!sel) return
+      if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateSel(); return }
+      if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removeSel(); return }
+      if (e.key === ']') { reorderSel(1); return }
+      if (e.key === '[') { reorderSel(-1); return }
+      if (e.key.startsWith('Arrow')) {
+        e.preventDefault()
+        const step = e.shiftKey ? 20 : 5
+        const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0
+        const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0
+        mutateSel((p) => ({ x: p.x + dx, y: p.y + dy }))
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
+  // ---- desktop: wheel scales the selected piece (alt+wheel rotates) ----
+  const wheelLive = useRef<{ active: boolean; timer: number }>({ active: false, timer: 0 })
+  const liveRefs = useRef({ doc, sel, snapshot, updatePiece })
+  liveRefs.current = { doc, sel, snapshot, updatePiece }
+  useEffect(() => {
+    const el = stageRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      const { doc: d, sel: sp, snapshot: snap, updatePiece: upd } = liveRefs.current
+      if (!d || !sp) return
+      e.preventDefault()
+      if (!wheelLive.current.active) {
+        wheelLive.current.active = true
+        snap()
+      }
+      if (e.altKey) {
+        upd(sp.id, { rotation: sp.rotation + e.deltaY * 0.12 })
+      } else {
+        const f = Math.exp(-e.deltaY * 0.0016)
+        upd(sp.id, { scale: Math.max(0.05, Math.min(4, sp.scale * f)) })
+      }
+      window.clearTimeout(wheelLive.current.timer)
+      wheelLive.current.timer = window.setTimeout(() => {
+        wheelLive.current.active = false
+        const cur = liveRefs.current.doc
+        if (cur) canvasStore.update(cur.id, { pieces: cur.pieces })
+      }, 350)
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+
   // ---- export ----
   const renderCanvas = useCallback(async (): Promise<HTMLCanvasElement> => {
     if (!doc) throw new Error('no canvas')
@@ -546,6 +604,7 @@ export default function CanvasStudio({ id, onClose }: Props) {
           </select>
           <button className="btn small" onClick={saveToEdits} disabled={!!busy || !doc.pieces.length}>Save to Edits</button>
         </div>
+        <p className="desktop-hint faint">Drag to move · scroll to scale · alt+scroll rotates · arrows nudge · [ ] reorder · ⌫ removes</p>
         {sel && (
           <div className="chips" style={{ margin: '6px 0 0' }}>
             <span className="faint" style={{ fontSize: 11, alignSelf: 'center', flex: '0 0 auto' }}>Selected:</span>

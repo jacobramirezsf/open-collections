@@ -298,6 +298,14 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-2)
 .canvas-dock { padding: 8px 10px calc(10px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--bg); }
 .canvas-dock .chips { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 6px; scrollbar-width: none; align-items: center; overscroll-behavior-x: contain; }
 .canvas-dock .btn-like { height: 28px; font-size: 12px; width: auto; padding: 2px 6px; flex: 0 0 auto; }
+.desktop-hint { display: none; margin: 6px 0 0; font-size: 11px; text-align: center; }
+@media (pointer: fine) and (min-width: 800px) {
+  .desktop-hint { display: block; }
+  .piece { cursor: grab; }
+  .piece:active { cursor: grabbing; }
+  .layerstrip { width: 62px; }
+  .canvas-dock .chips { justify-content: center; }
+}
 .picker-pop { z-index: 80; }
 .picker-scroll { max-height: 46vh; overflow-y: auto; }
 .picker-h { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-3); margin: 10px 0 6px; }
