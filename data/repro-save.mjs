@@ -40,18 +40,16 @@ console.log('editor: clicking Save to Edits at', new Date().toISOString())
 const t0 = Date.now()
 await page.click('button:has-text("Save to Edits")')
 // wait for toast or 90s
-const done = await Promise.race([
-  page.waitForSelector('.toast', { timeout: 90000 }).then(async (el) => 'toast: ' + (await el.textContent())),
-  page.waitForTimeout(90000).then(() => 'TIMEOUT 90s — still busy: ' + (page.locator('.busy-pill').count())),
-])
+const done = await page.waitForSelector('.toast', { timeout: 90000 }).then(async (el) => 'toast: ' + (await el.textContent())).catch(() => 'TIMEOUT 90s, no toast')
 console.log('editor save result after', ((Date.now() - t0) / 1000).toFixed(1) + 's →', done)
 await page.screenshot({ path: 'data/shots/repro-editor-save.png' })
 
 // --- B. canvas save with a favorited (proxied) piece + paper bg ---
-await page.click('button:has-text("Back")').catch(() => {})
-await page.waitForTimeout(400)
-await page.click('.viewer button:has-text("Back"), button:has-text("← Back")').catch(() => {})
-await page.waitForTimeout(600)
+for (let i = 0; i < 4 && (await page.locator('.viewer').count()); i++) {
+  await page.locator('.viewer').last().locator('button:has-text("Back")').first().click().catch(() => {})
+  await page.waitForTimeout(700)
+}
+console.log('viewers left:', await page.locator('.viewer').count())
 await page.click('button:has-text("Canvas")')
 await page.waitForSelector('.canvas-studio', { timeout: 8000 })
 await page.click('button:has-text("+ Add image")')
@@ -62,6 +60,8 @@ if (await cell.count()) {
   await cell.first().click()
   await page.waitForTimeout(1500)
 }
+await page.click('.picker-pop button:has-text("Done")').catch(() => {})
+await page.waitForTimeout(400)
 console.log('canvas pieces:', await page.locator('.piece').count())
 const bgSel = page.locator('select:has(option[value="paper:crumpled-bright"])')
 await bgSel.selectOption('paper:crumpled-bright')
@@ -69,10 +69,7 @@ await page.waitForTimeout(500)
 console.log('canvas: clicking Save to Edits at', new Date().toISOString())
 const t1 = Date.now()
 await page.click('button:has-text("Save to Edits")')
-const done2 = await Promise.race([
-  page.waitForSelector('.toast', { timeout: 90000 }).then(async (el) => 'toast: ' + (await el.textContent())),
-  page.waitForTimeout(90000).then(() => 'TIMEOUT 90s'),
-])
+const done2 = await page.waitForSelector('.toast', { timeout: 90000 }).then(async (el) => 'toast: ' + (await el.textContent())).catch(() => 'TIMEOUT 90s, no toast')
 console.log('canvas save result after', ((Date.now() - t1) / 1000).toFixed(1) + 's →', done2)
 await page.screenshot({ path: 'data/shots/repro-canvas-save.png' })
 await browser.close()

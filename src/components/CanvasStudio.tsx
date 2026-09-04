@@ -2,8 +2,8 @@
 // drag to move, pinch to scale/rotate, layer strip, paper backgrounds, undo, export/share.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { boardStore, type Board } from '../lib/boards'
-import { canvasStore, type CanvasDoc, type CanvasPiece } from '../lib/canvas'
-import { PAPER_SHEETS, paperUrl } from '../lib/papers'
+import { canvasStore, rememberCanvas, type CanvasDoc, type CanvasPiece } from '../lib/canvas'
+import { PAPER_SHEETS, paperUrl, sheetDef } from '../lib/papers'
 import { proxyImageUrl, uploadEdit } from '../lib/api'
 import { saveBlob } from '../lib/zip'
 import { onAuthChange } from '../lib/account'
@@ -63,6 +63,7 @@ export default function CanvasStudio({ id, onClose }: Props) {
   }>(null)
 
   useEffect(() => onAuthChange((s) => setUser(s.user)), [])
+  useEffect(() => rememberCanvas(id), [id])
   useEffect(() => canvasStore.subscribe(() => setDoc(canvasStore.get(id) ?? null)), [id])
 
   const say = useCallback((m: string) => {
@@ -381,14 +382,21 @@ export default function CanvasStudio({ id, onClose }: Props) {
     c.height = H
     const ctx = c.getContext('2d')!
     if (doc.background.startsWith('paper:')) {
+      const slug = doc.background.slice(6)
       const img = await new Promise<HTMLImageElement>((ok, bad) => {
         const im = new Image()
         im.onload = () => ok(im)
         im.onerror = () => bad(new Error('paper failed'))
-        im.src = paperUrl(doc.background.slice(6))
+        im.src = paperUrl(slug)
       })
-      const cover = Math.max(W / img.naturalWidth, H / img.naturalHeight)
-      ctx.drawImage(img, (W - img.naturalWidth * cover) / 2, (H - img.naturalHeight * cover) / 2, img.naturalWidth * cover, img.naturalHeight * cover)
+      if (sheetDef(slug)?.edge) {
+        // silhouette sheet: contained and centered, surround stays transparent
+        const fit = Math.min(W / img.naturalWidth, H / img.naturalHeight)
+        ctx.drawImage(img, (W - img.naturalWidth * fit) / 2, (H - img.naturalHeight * fit) / 2, img.naturalWidth * fit, img.naturalHeight * fit)
+      } else {
+        const cover = Math.max(W / img.naturalWidth, H / img.naturalHeight)
+        ctx.drawImage(img, (W - img.naturalWidth * cover) / 2, (H - img.naturalHeight * cover) / 2, img.naturalWidth * cover, img.naturalHeight * cover)
+      }
     } else if (doc.background !== 'transparent') {
       ctx.fillStyle = doc.background
       ctx.fillRect(0, 0, W, H)
@@ -518,10 +526,21 @@ export default function CanvasStudio({ id, onClose }: Props) {
     )
   }
 
-  const bgStyle: React.CSSProperties = doc.background.startsWith('paper:')
-    ? { backgroundImage: `url(${paperUrl(doc.background.slice(6))})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+  const CHECKER = 'repeating-conic-gradient(#e3e0d9 0% 25%, #efece6 0% 50%)'
+  const bgSlug = doc.background.startsWith('paper:') ? doc.background.slice(6) : null
+  const bgEdge = bgSlug ? sheetDef(bgSlug)?.edge : false
+  const bgStyle: React.CSSProperties = bgSlug
+    ? bgEdge
+      ? {
+          // edge sheet: keep its silhouette — contained on a transparent board
+          backgroundImage: `url(${paperUrl(bgSlug)}), ${CHECKER}`,
+          backgroundSize: 'contain, 16px 16px',
+          backgroundRepeat: 'no-repeat, repeat',
+          backgroundPosition: 'center, 0 0',
+        }
+      : { backgroundImage: `url(${paperUrl(bgSlug)})`, backgroundSize: 'cover', backgroundPosition: 'center' }
     : doc.background === 'transparent'
-      ? { backgroundImage: 'repeating-conic-gradient(#e3e0d9 0% 25%, #efece6 0% 50%)', backgroundSize: '16px 16px' }
+      ? { backgroundImage: CHECKER, backgroundSize: '16px 16px' }
       : { background: doc.background }
 
   return (
@@ -597,9 +616,21 @@ export default function CanvasStudio({ id, onClose }: Props) {
           }}>
             <option value="color">Color…</option>
             <option value="transparent">Transparent</option>
-            {PAPER_SHEETS.filter((t) => !t.edge).map((t) => (
-              <option key={t.slug} value={'paper:' + t.slug}>{t.label} paper</option>
-            ))}
+            <optgroup label="Papers">
+              {PAPER_SHEETS.filter((t) => t.group === 'paper').map((t) => (
+                <option key={t.slug} value={'paper:' + t.slug}>{t.label}</option>
+              ))}
+            </optgroup>
+            <optgroup label="Deckle and torn edges">
+              {PAPER_SHEETS.filter((t) => t.group === 'edge').map((t) => (
+                <option key={t.slug} value={'paper:' + t.slug}>{t.label}</option>
+              ))}
+            </optgroup>
+            <optgroup label="Fabric">
+              {PAPER_SHEETS.filter((t) => t.group === 'fabric').map((t) => (
+                <option key={t.slug} value={'paper:' + t.slug}>{t.label}</option>
+              ))}
+            </optgroup>
           </select>
           {!doc.background.startsWith('paper:') && doc.background !== 'transparent' && (
             <input type="color" value={doc.background} onChange={(e) => canvasStore.update(id, { background: e.target.value })} style={{ width: 34, height: 28, border: '1px solid var(--line-2)', borderRadius: 3, background: '#fff', padding: 2 }} />
@@ -694,15 +725,18 @@ function CanvasMenu({ currentId, onClose, onOpen }: { currentId: string; onClose
       <div className="backdrop" style={{ zIndex: 75 }} onClick={onClose} />
       <div className="pop picker-pop">
         <span className="label">Your canvases</span>
+        <p className="faint" style={{ fontSize: 12, margin: '2px 0 8px' }}>Canvases save automatically as you work — reopen any of them here to keep editing or export again.</p>
         <div className="list">
           {docs.map((d) => (
             <button key={d.id} onClick={() => onOpen(d.id)}>
-              {d.id === currentId ? '● ' : ''}{d.name} <span>{d.pieces.length}</span>
+              {d.id === currentId ? '● ' : ''}{d.name}
+              <span>{d.pieces.length} {d.pieces.length === 1 ? 'piece' : 'pieces'} · {new Date(d.updatedAt).toLocaleDateString()}</span>
             </button>
           ))}
         </div>
-        <div className="row">
-          <button className="btn primary" onClick={() => onOpen(canvasStore.create().id)}>New canvas</button>
+        <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
+          <button className="btn primary" onClick={() => { const n = prompt('Name your canvas', `Canvas ${docs.length + 1}`); onOpen(canvasStore.create(n || undefined).id) }}>New canvas</button>
+          <button className="btn" onClick={() => { const cur = canvasStore.get(currentId); const n = prompt('Canvas name', cur?.name); if (n) canvasStore.update(currentId, { name: n }) }}>Rename</button>
           {docs.length > 1 && (
             <button className="btn danger" onClick={() => { if (confirm('Delete this canvas?')) { canvasStore.remove(currentId); onOpen(canvasStore.list()[0]?.id || canvasStore.create().id) } }}>
               Delete current

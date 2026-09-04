@@ -10,7 +10,7 @@ import Grid from './components/Grid'
 import Viewer from './components/Viewer'
 import ContactSheet from './components/ContactSheet'
 import CanvasStudio from './components/CanvasStudio'
-import { canvasStore } from './lib/canvas'
+import { canvasStore, lastCanvasId } from './lib/canvas'
 import { AccountPanel, BoardsPanel, Filters, PatentFilters, SaveToBoard, StatusPanel } from './components/Panels'
 
 const HINTS: Record<Tool, string[]> = {
@@ -359,7 +359,8 @@ export default function App() {
           <button
             className="btn"
             onClick={() => {
-              const d = canvasStore.list()[0] || canvasStore.create('My canvas')
+              const last = lastCanvasId()
+              const d = (last && canvasStore.get(last)) || canvasStore.list()[0] || canvasStore.create('My canvas')
               location.hash = `#/canvas/${d.id}`
               setView({ kind: 'canvas', id: d.id })
             }}

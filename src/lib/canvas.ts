@@ -89,6 +89,15 @@ export const canvasStore = {
   },
 }
 
+// last-opened canvas, so the toolbar button returns you to the one you were working on
+const LAST_KEY = 'open-collections:last-canvas'
+export function rememberCanvas(id: string) {
+  try { localStorage.setItem(LAST_KEY, id) } catch {}
+}
+export function lastCanvasId(): string | null {
+  try { return localStorage.getItem(LAST_KEY) } catch { return null }
+}
+
 // union-merge for cloud sync (same strategy as boards)
 export function mergeCanvases(a: CanvasDoc[], b: CanvasDoc[]): CanvasDoc[] {
   const byId = new Map<string, CanvasDoc>()
