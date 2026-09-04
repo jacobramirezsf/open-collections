@@ -206,8 +206,41 @@ export default function Editor({ item, onClose }: Props) {
     })
   }
 
-  const removeBg = useCallback(async () => {
-    setBusy('Removing background…')
+  // Free on-device cutout (WASM model, runs in the browser — no credits). Default route.
+  const removeBgLocal = useCallback(async () => {
+    if (!originalFull) return
+    setBusy('Removing background on-device…')
+    setError(null)
+    try {
+      const { removeBackground } = await import('@imgly/background-removal')
+      const src = toCanvas(originalFull, 2400)
+      const input: Blob = await new Promise((r, j) => src.toBlob((b) => (b ? r(b) : j(new Error('encode failed'))), 'image/png'))
+      const out = await removeBackground(input, {
+        output: { format: 'image/png', quality: 1 },
+        progress: (key: string, cur: number, total: number) => {
+          if (key.startsWith('fetch:')) setBusy(`Preparing cutout model… ${total ? Math.round((cur / total) * 100) : 0}%`)
+          else setBusy('Removing background on-device…')
+        },
+      })
+      const url = URL.createObjectURL(out)
+      try {
+        adopt(toCanvas(await loadImg(url), SOURCE_MAX))
+      } finally {
+        URL.revokeObjectURL(url)
+      }
+      setCutoutApplied(true)
+      setParams((p) => ({ ...p, paper: 'transparent' }))
+      setTex((t) => ({ ...t, paper: 'transparent' }))
+    } catch (e) {
+      setError('On-device cutout failed (' + (e as Error).message + ') — try the precise cutout.')
+    } finally {
+      setBusy(null)
+    }
+  }, [originalFull, adopt])
+
+  // Precise cutout (server-side service, uses studio credits) — for images the free route struggles with.
+  const removeBgPrecise = useCallback(async () => {
+    setBusy('Removing background (precise)…')
     setError(null)
     try {
       const res = await fetch('/api/removebg', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: item.id }) })
@@ -503,11 +536,14 @@ export default function Editor({ item, onClose }: Props) {
           {error && full && <p style={{ color: 'var(--danger)', marginTop: 0, fontSize: 13 }}>{error}</p>}
           <h3 className="sec-image-h" style={{ marginTop: 0 }}>Image</h3>
           <div className="actions sec-image">
-            <button className="btn" onClick={removeBg} disabled={!!busy || cutoutApplied || !full}>{cutoutApplied ? 'Background removed ✓' : 'Remove background'}</button>
+            <button className="btn" onClick={removeBgLocal} disabled={!!busy || cutoutApplied || !full}>{cutoutApplied ? 'Background removed ✓' : 'Remove background'}</button>
+            <button className="btn" onClick={removeBgPrecise} disabled={!!busy || !full} title="Higher-fidelity cutout for tricky edges — uses studio credits, so try the standard one first">
+              Precise cutout
+            </button>
             {cutoutApplied && <button className="btn" onClick={restoreOriginal}>Restore original</button>}
           </div>
           <p className="faint hide-mobile" style={{ fontSize: 12, margin: '6px 0 0' }}>
-            {full ? `Source ${full.width} × ${full.height}px. ` : ''}Automatic background removal (rate-limited). Scroll or pinch the preview to zoom.
+            {full ? `Source ${full.width} × ${full.height}px. ` : ''}Standard cutout runs free on your device; Precise re-cuts the original with a higher-fidelity service (rate-limited). Scroll or pinch to zoom.
           </p>
 
           <h3 className="sec-vector-h">Vectorize</h3>
@@ -530,8 +566,11 @@ export default function Editor({ item, onClose }: Props) {
 
           <h3 style={{ opacity: vector ? 0.45 : 1 }}>Texture {stack.length > 1 ? `· ${stack.length} stacked` : ''}</h3>
           <div className="chips" style={{ marginBottom: 10 }}>
-            <button type="button" className={'btn small mobile-only' + (cutoutApplied ? ' active' : '')} disabled={!!busy || !full} onClick={() => (cutoutApplied ? restoreOriginal() : void removeBg())}>
+            <button type="button" className={'btn small mobile-only' + (cutoutApplied ? ' active' : '')} disabled={!!busy || !full} onClick={() => (cutoutApplied ? restoreOriginal() : void removeBgLocal())}>
               {cutoutApplied ? 'Cutout ✓' : 'Cutout'}
+            </button>
+            <button type="button" className="btn small mobile-only" disabled={!!busy || !full} onClick={() => void removeBgPrecise()} title="Higher-fidelity cutout — uses studio credits">
+              HD
             </button>
             <button type="button" className={'btn small mobile-only' + (vector ? ' active' : '')} disabled={!!busy || !full} onClick={() => { if (vector) { URL.revokeObjectURL(vector.url); setVector(null) } else void vectorize() }}>
               Vectorize
