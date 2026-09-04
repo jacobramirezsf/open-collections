@@ -6,7 +6,7 @@ import type { Item } from '../../shared/types'
 import { proxyImageUrl } from '../lib/api'
 import { saveBlob } from '../lib/zip'
 import { computeScreen, renderScreen, screenToSvg, type HalftoneParams } from '../lib/halftone'
-import { EFFECTS, TEXTURE_DEFAULTS, applyTexture, effectDef, type EffectKind, type TextureParams } from '../lib/textures'
+import { CMYK_CHANNELS, EFFECTS, TEXTURE_DEFAULTS, applyTexture, asciiGrid, computeCmykScreens, effectDef, type EffectKind, type TextureParams } from '../lib/textures'
 
 interface Props {
   item: Item
@@ -334,6 +334,12 @@ export default function Editor({ item, onClose }: Props) {
                       <input type="color" value={tex.ink} onChange={(e) => setTex((t) => ({ ...t, ink: e.target.value }))} />
                     </div>
                   )}
+                  {effectDef(effect as EffectKind).colors.includes('ink2') && (
+                    <div>
+                      <span className="label">Ink 2</span>
+                      <input type="color" value={tex.ink2} onChange={(e) => setTex((t) => ({ ...t, ink2: e.target.value }))} />
+                    </div>
+                  )}
                   {effectDef(effect as EffectKind).colors.includes('paper') && (
                     <div>
                       <span className="label">Paper</span>
@@ -346,8 +352,13 @@ export default function Editor({ item, onClose }: Props) {
                 </div>
               )}
               {effectDef(effect as EffectKind).invert && (
-                <label className="check" style={{ marginTop: 4 }}>
+                <label className="check" style={{ marginTop: 4, marginRight: 12 }}>
                   <input type="checkbox" checked={tex.invert} onChange={(e) => setTex((t) => ({ ...t, invert: e.target.checked }))} /> Invert
+                </label>
+              )}
+              {effectDef(effect as EffectKind).colorize && (
+                <label className="check" style={{ marginTop: 4 }}>
+                  <input type="checkbox" checked={tex.colorize} onChange={(e) => setTex((t) => ({ ...t, colorize: e.target.checked }))} /> Color from image
                 </label>
               )}
             </>
@@ -407,6 +418,38 @@ export default function Editor({ item, onClose }: Props) {
             <button className="btn" onClick={exportSvg} disabled={!full || !!busy || effect !== 'halftone'} title={effect === 'halftone' ? 'Resolution-independent halftone for screenprint separations' : 'Vector export is available for the Halftone texture'}>
               Download SVG (vector)
             </button>
+            {effect === 'ascii' && (
+              <button
+                className="btn"
+                disabled={!full || !!busy}
+                onClick={() => {
+                  if (!full || !preview) return
+                  const cellPx = Math.max(3, tex.size * (full.width / preview.width))
+                  const text = asciiGrid(full, cellPx, tex.invert).rows.join('\n').replace(/[ ]+$/gm, '')
+                  saveBlob(new Blob([text], { type: 'text/plain' }), `${baseName}.txt`)
+                }}
+              >
+                Download TXT
+              </button>
+            )}
+            {effect === 'cmyk' && (
+              <button
+                className="btn"
+                disabled={!full || !!busy}
+                title="One vector SVG per ink — C/M/Y/K separations at classic screen angles, ready to burn"
+                onClick={() => {
+                  if (!full || !preview) return
+                  const cellPx = Math.max(2, tex.size * (full.width / preview.width))
+                  const screens = computeCmykScreens(full, cellPx, tex.amount)
+                  for (const { ch, name, angle } of CMYK_CHANNELS) {
+                    const svg = screenToSvg(screens[ch], { on: true, cell: 0, angle, shape: 'dot', gain: 1, ink: '#141414', paper: 'transparent', invert: false })
+                    saveBlob(new Blob([svg], { type: 'image/svg+xml' }), `${baseName}-plate-${ch}-${name.toLowerCase()}-${angle}deg.svg`)
+                  }
+                }}
+              >
+                Download plates (4× SVG)
+              </button>
+            )}
             <button className="btn" onClick={() => { setParams(DEFAULTS); setTex({ ...TEXTURE_DEFAULTS }); setEffect('halftone') }}>Reset</button>
           </div>
           <p className="faint" style={{ fontSize: 12, marginTop: 10 }}>

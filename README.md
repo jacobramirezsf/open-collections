@@ -156,7 +156,9 @@ jurisdictions are labeled “check jurisdiction”.
 
 Every image item has an **Edit** action in the viewer: **background removal**
 (remove.bg, `REMOVE_BG_KEY`), a **texture rack** — halftone (with vector SVG export), dither,
-riso grain, stipple, glyphs, crosshatch, duotone/cyanotype, pixelate, paper grain — all classic
+riso grain, riso 2-color (misregistered two-ink separation), stipple, glyphs, ASCII (with .txt
+export), crosshatch, duotone/cyanotype, CMYK halftone (with 4× vector SVG plate export at classic
+screen angles), pixelate, gradient (photo→mesh gradient), paper grain — all classic
 print techniques implemented scale-aware in `src/lib/textures.ts` (client-side, transparency-aware,
 identical at preview and print resolution), and **AI vectorization** (QuiverAI image→SVG,
 `QUIVERAI_API_KEY` from platform.quiver.ai/api-keys, per-IP daily cap, `QUIVER_MODEL` defaults to
