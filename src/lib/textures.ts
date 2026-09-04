@@ -177,27 +177,8 @@ export const EFFECTS: EffectDef[] = [
     colors: ['paper'],
     defaults: { size: 6, amount: 1.05, paper: '#ffffff' },
   },
-  {
-    key: 'gradient',
-    label: 'Gradient',
-    controls: [
-      { k: 'size', label: 'Detail', min: 2, max: 10, step: 1 },
-      { k: 'amount', label: 'Saturation', min: 0, max: 1, step: 0.05 },
-    ],
-    colors: [],
-    defaults: { size: 4, amount: 0.6 },
-  },
-  {
-    key: 'paper',
-    label: 'Paper grain',
-    controls: [
-      { k: 'amount', label: 'Grain', min: 0, max: 1, step: 0.05 },
-      { k: 'size', label: 'Fiber scale', min: 1, max: 6, step: 1 },
-    ],
-    colors: [],
-    defaults: { amount: 0.5, size: 2 },
-  },
 ]
+// ('gradient' and 'paper' grain renderers remain below but are retired from the chip rack)
 
 export function effectDef(key: EffectKind): EffectDef {
   return EFFECTS.find((e) => e.key === key)!

@@ -14,6 +14,7 @@ import {
   computeCmykScreens, effectDef, type EffectKind, type PaperTexture, type TextureParams,
 } from '../lib/textures'
 import { PAPER_SHEETS, paperUrl, sheetDef } from '../lib/papers'
+import MaskTool from './MaskTool'
 import { useBodyLock } from './Panels'
 
 interface Props {
@@ -61,6 +62,7 @@ export default function Editor({ item, onClose }: Props) {
   const [preview, setPreview] = useState<HTMLCanvasElement | null>(null)
   const [originalFull, setOriginalFull] = useState<HTMLCanvasElement | null>(null)
   const [cutoutApplied, setCutoutApplied] = useState(false)
+  const [refining, setRefining] = useState(false)
   const [busy, setBusy] = useState<string | null>('Loading image…')
   const [error, setError] = useState<string | null>(null)
   const [exportScale, setExportScale] = useState(1)
@@ -580,6 +582,9 @@ export default function Editor({ item, onClose }: Props) {
             <button className="btn" onClick={removeBgPrecise} disabled={!!busy || !full} title="Higher-fidelity cutout for tricky edges — uses studio credits, so try the standard one first">
               Precise cutout
             </button>
+            <button className="btn" disabled={!!busy || !full} onClick={() => setRefining(true)} title="Paint away parts of the image, or paint the original back">
+              Erase / restore
+            </button>
             {cutoutApplied && <button className="btn" onClick={restoreOriginal}>Restore original</button>}
           </div>
           <p className="faint hide-mobile" style={{ fontSize: 12, margin: '6px 0 0' }}>
@@ -611,6 +616,9 @@ export default function Editor({ item, onClose }: Props) {
             </button>
             <button type="button" className="btn small mobile-only" disabled={!!busy || !full} onClick={() => void removeBgPrecise()} title="Higher-fidelity cutout — uses studio credits">
               Precise cutout
+            </button>
+            <button type="button" className="btn small mobile-only" disabled={!!busy || !full} onClick={() => setRefining(true)}>
+              Erase
             </button>
             <button type="button" className={'btn small mobile-only' + (vector ? ' active' : '')} disabled={!!busy || !full} onClick={() => { if (vector) { URL.revokeObjectURL(vector.url); setVector(null) } else void vectorize() }}>
               Vectorize
@@ -680,60 +688,68 @@ export default function Editor({ item, onClose }: Props) {
               )}
               {stack.length > 0 && (
                 <>
-                  <div>
-                    <span className="label">Paper</span>
-                    <div className="row">
-                      <input
-                        type="color"
-                        value={activePaper === 'transparent' ? '#ffffff' : activePaper}
-                        disabled={activePaper === 'transparent'}
+                  <div className="ctl row">
+                    <span className="label">Background</span>
+                    <div className="row" style={{ gap: 6 }}>
+                      <select
+                        className="input"
+                        style={{ width: 'auto', flex: '1 1 auto', minWidth: 0 }}
+                        value={paperTex.startsWith('img:') ? paperTex : activePaper === 'transparent' ? 'transparent' : paperTex}
                         onChange={(e) => {
-                          setTex((t) => ({ ...t, paper: e.target.value }))
-                          setParams((p) => ({ ...p, paper: e.target.value }))
+                          const v = e.target.value
+                          if (v === 'transparent') {
+                            setPaperTex('none')
+                            setTex((t) => ({ ...t, paper: 'transparent' }))
+                            setParams((p) => ({ ...p, paper: 'transparent' }))
+                            return
+                          }
+                          setPaperTex(v)
+                          if (!v.startsWith('img:') && activePaper === 'transparent') {
+                            // coming back from transparent: restore a real paper color to tint
+                            setTex((t) => ({ ...t, paper: TEXTURE_DEFAULTS.paper }))
+                            setParams((p) => ({ ...p, paper: HT_DEFAULTS.paper }))
+                          }
                         }}
-                      />
-                      <label className="check">
+                      >
+                        <option value="none">Color…</option>
+                        <option value="transparent">Transparent</option>
+                        <optgroup label="Color with a finish">
+                          {PAPER_TEXTURES.filter((t) => t.key !== 'none').map((t) => (
+                            <option key={t.key} value={t.key}>{t.label}</option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Papers">
+                          {PAPER_SHEETS.filter((t) => t.group === 'paper').map((t) => (
+                            <option key={t.slug} value={'img:' + t.slug}>{t.label}</option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Deckle and torn edges">
+                          {PAPER_SHEETS.filter((t) => t.group === 'edge').map((t) => (
+                            <option key={t.slug} value={'img:' + t.slug}>{t.label}</option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Fabric">
+                          {PAPER_SHEETS.filter((t) => t.group === 'fabric').map((t) => (
+                            <option key={t.slug} value={'img:' + t.slug}>{t.label}</option>
+                          ))}
+                        </optgroup>
+                      </select>
+                      {!paperTex.startsWith('img:') && activePaper !== 'transparent' && (
                         <input
-                          type="checkbox"
-                          checked={activePaper === 'transparent'}
+                          type="color"
+                          aria-label="Background color"
+                          value={activePaper}
                           onChange={(e) => {
-                            const v = e.target.checked ? 'transparent' : TEXTURE_DEFAULTS.paper
-                            setTex((t) => ({ ...t, paper: v }))
-                            setParams((p) => ({ ...p, paper: v }))
+                            setTex((t) => ({ ...t, paper: e.target.value }))
+                            setParams((p) => ({ ...p, paper: e.target.value }))
                           }}
                         />
-                        transparent
-                      </label>
+                      )}
                     </div>
-                  </div>
-                  <div>
-                    <span className="label">Surface</span>
-                    <select className="input" style={{ width: 'auto' }} value={paperTex} onChange={(e) => setPaperTex(e.target.value)}>
-                      <optgroup label="Finish">
-                        {PAPER_TEXTURES.map((t) => (
-                          <option key={t.key} value={t.key}>{t.label}</option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="Papers">
-                        {PAPER_SHEETS.filter((t) => t.group === 'paper').map((t) => (
-                          <option key={t.slug} value={'img:' + t.slug}>{t.label}</option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="Deckle and torn edges">
-                        {PAPER_SHEETS.filter((t) => t.group === 'edge').map((t) => (
-                          <option key={t.slug} value={'img:' + t.slug}>{t.label}</option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="Fabric">
-                        {PAPER_SHEETS.filter((t) => t.group === 'fabric').map((t) => (
-                          <option key={t.slug} value={'img:' + t.slug}>{t.label}</option>
-                        ))}
-                      </optgroup>
-                    </select>
                   </div>
                   {paperTex.startsWith('img:') && (
                     <div>
-                      <span className="label">Paper mode</span>
+                      <span className="label">Sheet mode</span>
                       <div className="seg">
                         <button type="button" className={sheetMode === 'ink' ? 'active' : ''} onClick={() => setSheetMode('ink')} title="Artwork multiplies into the paper like ink on stock">overlay</button>
                         <button type="button" className={sheetMode === 'behind' ? 'active' : ''} onClick={() => setSheetMode('behind')} title="Paper sits behind the artwork as a background">background</button>
@@ -798,7 +814,7 @@ export default function Editor({ item, onClose }: Props) {
               ))}
             </select>
           </div>
-          <div className="actions">
+          <div className="actions export-actions">
             <button className="btn primary" onClick={exportPng} disabled={!full || !!busy}>{isTouch() ? 'Save image' : 'Download PNG'}</button>
             <button className="btn" onClick={saveEdit} disabled={!full || !!busy} title="Keeps this edit on your Edits board with a link to the original work">Save to Edits</button>
             <button className="btn" onClick={exportSvg} disabled={!full || !!busy || !svgOk} title={svgOk ? 'Resolution-independent halftone for screenprint separations' : 'Vector SVG export is available when Halftone is the only texture'}>
@@ -844,6 +860,20 @@ export default function Editor({ item, onClose }: Props) {
         </div>
       </div>
       {toast && <div className="toast">{toast}</div>}
-    </div>
+          {refining && originalFull && full && (
+        <MaskTool
+          original={originalFull}
+          current={full}
+          onApply={(c) => {
+            adopt(c)
+            setCutoutApplied(true)
+            setParams((p) => ({ ...p, paper: 'transparent' }))
+            setTex((t) => ({ ...t, paper: 'transparent' }))
+            setRefining(false)
+          }}
+          onClose={() => setRefining(false)}
+        />
+      )}
+</div>
   )
 }

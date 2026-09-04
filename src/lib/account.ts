@@ -97,8 +97,32 @@ export async function restoreSession(): Promise<string | null> {
   }
 }
 
-export async function signIn(action: 'login' | 'signup', username: string, password: string): Promise<void> {
-  const r = await api('/api/auth', { method: 'POST', body: JSON.stringify({ action, username, password }) })
+export async function signIn(action: 'login' | 'signup', username: string, password: string, email?: string): Promise<void> {
+  const r = await api('/api/auth', { method: 'POST', body: JSON.stringify({ action, username, password, email: email || undefined }) })
+  state.user = r.user
+  state.error = null
+  emit()
+  await startSync()
+}
+
+// Optional email: enables password reset and early access to experimental tools.
+export async function fetchEmail(): Promise<string | null> {
+  const r = await api('/api/auth', { method: 'POST', body: JSON.stringify({ action: 'me' }) }).catch(() => null)
+  return (r?.email as string) || null
+}
+
+export async function setEmail(email: string): Promise<string | null> {
+  const r = await api('/api/auth', { method: 'POST', body: JSON.stringify({ action: 'set-email', email }) })
+  return (r?.email as string) || null
+}
+
+export async function requestReset(username: string): Promise<string> {
+  const r = await api('/api/auth', { method: 'POST', body: JSON.stringify({ action: 'forgot', username }) })
+  return (r?.message as string) || 'If that account has an email on file, a reset code is on its way.'
+}
+
+export async function resetPassword(username: string, code: string, password: string): Promise<void> {
+  const r = await api('/api/auth', { method: 'POST', body: JSON.stringify({ action: 'reset', username, code, password }) })
   state.user = r.user
   state.error = null
   emit()

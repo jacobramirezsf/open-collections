@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Item, SourceInfo } from '../../shared/types'
 import { FAVORITES_ID, type Board } from '../lib/boards'
 import type { Query } from '../lib/api'
+import { fetchEmail, requestReset, resetPassword, setEmail } from '../lib/account'
 
 export function useBodyLock() {
   useEffect(() => {
@@ -332,26 +333,147 @@ export function PatentFilters({ draft, onChange, onApply, onClear }: { draft: Qu
 export function AccountPanel({ auth, onClose, onSignIn, onSignOut }: {
   auth: { user: string | null; syncing: boolean; error: string | null }
   onClose: () => void
-  onSignIn: (action: 'login' | 'signup', username: string, password: string) => Promise<void>
+  onSignIn: (action: 'login' | 'signup', username: string, password: string, email?: string) => Promise<void>
   onSignOut: () => void
 }) {
-  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [email, setEmailField] = useState('')
+  const [code, setCode] = useState('')
+  const [sent, setSent] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [note, setNote] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [myEmail, setMyEmail] = useState<string | null>(null)
+  const [editingEmail, setEditingEmail] = useState(false)
+
+  useEffect(() => {
+    if (auth.user) void fetchEmail().then(setMyEmail)
+  }, [auth.user])
+
   if (auth.user) {
     return (
       <SidePanel title="Account" onClose={onClose}>
         <p style={{ marginTop: 0 }}>Signed in as <b>{auth.user}</b></p>
         <p className="muted" style={{ fontSize: 13 }}>
-          {auth.syncing ? 'Syncing…' : auth.error ? auth.error : 'Boards and favorites sync to this account and follow you across browsers and devices.'}
+          {auth.syncing ? 'Syncing…' : auth.error ? auth.error : 'Your boards, edits and canvases sync to this account and follow you across browsers and devices.'}
         </p>
-        <button className="btn" onClick={onSignOut}>Sign out</button>
-        <p className="faint" style={{ marginTop: 16, fontSize: 12 }}>Signing out keeps a copy of your boards in this browser.</p>
+        <h4 className="label" style={{ marginTop: 18 }}>Email</h4>
+        {myEmail && !editingEmail ? (
+          <>
+            <p style={{ margin: '0 0 8px', fontSize: 13 }}>{myEmail}</p>
+            <p className="faint" style={{ fontSize: 12, margin: '0 0 8px' }}>
+              You can reset your password with this address, and you&rsquo;re on the list for new tools while they&rsquo;re still being tested.
+            </p>
+            <div className="row">
+              <button className="btn small" onClick={() => { setEmailField(myEmail); setEditingEmail(true) }}>Change</button>
+              <button
+                className="btn small"
+                onClick={async () => {
+                  if (!confirm('Remove your email? You will not be able to reset a forgotten password.')) return
+                  setBusy(true)
+                  try { setMyEmail(await setEmail('')) } catch (ex) { setErr((ex as Error).message) } finally { setBusy(false) }
+                }}
+              >
+                Remove
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            {!editingEmail && (
+              <p className="faint" style={{ fontSize: 12, margin: '0 0 8px' }}>
+                No email on file. That&rsquo;s fine — the account works the same without one. Add one if you want to be able to
+                reset a forgotten password, and to try new tools while they&rsquo;re still being built.
+              </p>
+            )}
+            <input className="input" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmailField(e.target.value)} autoComplete="email" style={{ marginBottom: 8 }} />
+            <div className="row">
+              <button
+                className="btn small primary"
+                disabled={busy || !email.includes('@')}
+                onClick={async () => {
+                  setBusy(true)
+                  setErr(null)
+                  try {
+                    setMyEmail(await setEmail(email.toLowerCase().trim()))
+                    setEditingEmail(false)
+                    setNote('Email saved.')
+                  } catch (ex) { setErr((ex as Error).message) } finally { setBusy(false) }
+                }}
+              >
+                Save email
+              </button>
+              {editingEmail && <button className="btn small" onClick={() => setEditingEmail(false)}>Cancel</button>}
+            </div>
+          </>
+        )}
+        {err && <p style={{ color: 'var(--danger)', fontSize: 13 }}>{err}</p>}
+        {note && <p className="faint" style={{ fontSize: 12 }}>{note}</p>}
+        <div style={{ marginTop: 20 }}>
+          <button className="btn" onClick={onSignOut}>Sign out</button>
+        </div>
+        <p className="faint" style={{ marginTop: 12, fontSize: 12 }}>Signing out keeps a copy of your boards in this browser.</p>
       </SidePanel>
     )
   }
+
+  if (mode === 'forgot') {
+    return (
+      <SidePanel title="Reset password" onClose={onClose}>
+        {!sent ? (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault()
+              setErr(null)
+              setBusy(true)
+              try {
+                setNote(await requestReset(username.toLowerCase().trim()))
+                setSent(true)
+              } catch (ex) { setErr((ex as Error).message) } finally { setBusy(false) }
+            }}
+          >
+            <p style={{ marginTop: 0, fontSize: 13 }}>
+              If your account has an email on file, we&rsquo;ll send a six-digit code to it. Accounts without an email can&rsquo;t be
+              recovered — that&rsquo;s the tradeoff for signing up without one.
+            </p>
+            <span className="label">Username</span>
+            <input className="input" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" autoFocus style={{ marginBottom: 10 }} />
+            {err && <p style={{ color: 'var(--danger)', fontSize: 13 }}>{err}</p>}
+            <div className="row">
+              <button className="btn primary" type="submit" disabled={busy || !username}>{busy ? 'Sending…' : 'Send code'}</button>
+              <button className="btn link" type="button" onClick={() => { setMode('login'); setErr(null); setNote(null) }}>Back to sign in</button>
+            </div>
+          </form>
+        ) : (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault()
+              setErr(null)
+              setBusy(true)
+              try {
+                await resetPassword(username.toLowerCase().trim(), code.trim(), password)
+                onClose()
+              } catch (ex) { setErr((ex as Error).message) } finally { setBusy(false) }
+            }}
+          >
+            <p style={{ marginTop: 0, fontSize: 13 }}>{note} It works for 15 minutes.</p>
+            <span className="label">Six-digit code</span>
+            <input className="input" value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" autoFocus style={{ marginBottom: 10 }} />
+            <span className="label">New password</span>
+            <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" style={{ marginBottom: 10 }} />
+            {err && <p style={{ color: 'var(--danger)', fontSize: 13 }}>{err}</p>}
+            <div className="row">
+              <button className="btn primary" type="submit" disabled={busy || code.length < 6 || password.length < 8}>{busy ? 'Working…' : 'Set new password'}</button>
+              <button className="btn link" type="button" onClick={() => setSent(false)}>Start over</button>
+            </div>
+          </form>
+        )}
+      </SidePanel>
+    )
+  }
+
   return (
     <SidePanel title={mode === 'login' ? 'Sign in' : 'Create account'} onClose={onClose}>
       <form
@@ -360,7 +482,7 @@ export function AccountPanel({ auth, onClose, onSignIn, onSignOut }: {
           setErr(null)
           setBusy(true)
           try {
-            await onSignIn(mode, username.toLowerCase().trim(), password)
+            await onSignIn(mode, username.toLowerCase().trim(), password, mode === 'signup' ? email.toLowerCase().trim() : undefined)
             onClose()
           } catch (ex) {
             setErr((ex as Error).message)
@@ -373,16 +495,32 @@ export function AccountPanel({ auth, onClose, onSignIn, onSignOut }: {
         <input className="input" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" autoFocus style={{ marginBottom: 10 }} />
         <span className="label">Password</span>
         <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} style={{ marginBottom: 10 }} />
+        {mode === 'signup' && (
+          <>
+            <span className="label">Email — optional</span>
+            <input className="input" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmailField(e.target.value)} autoComplete="email" style={{ marginBottom: 6 }} />
+            <p className="faint" style={{ fontSize: 12, margin: '0 0 10px' }}>
+              Your call. Leave it blank and you get a username-and-password account that works exactly the same — but a
+              forgotten password can&rsquo;t be recovered. Add an email and you can reset your password, and you&rsquo;ll get new
+              tools to try while they&rsquo;re still being built. Either way it&rsquo;s only used for those two things.
+            </p>
+          </>
+        )}
         {err && <p style={{ color: 'var(--danger)', fontSize: 13 }}>{err}</p>}
         <div className="row">
           <button className="btn primary" type="submit" disabled={busy || !username || !password}>{busy ? 'Working…' : mode === 'login' ? 'Sign in' : 'Create account'}</button>
-          <button className="btn link" type="button" onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}>
+          <button className="btn link" type="button" onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setErr(null) }}>
             {mode === 'login' ? 'New here? Create an account' : 'Have an account? Sign in'}
           </button>
         </div>
+        {mode === 'login' && (
+          <button className="btn link" type="button" style={{ marginTop: 10, padding: 0 }} onClick={() => { setMode('forgot'); setErr(null); setSent(false) }}>
+            Forgot your password?
+          </button>
+        )}
       </form>
       <p className="faint" style={{ marginTop: 16, fontSize: 12 }}>
-        An account syncs your boards and favorites across devices. Just a username and a password (8+ characters) — no email needed, so there's no password recovery: keep it somewhere safe.
+        An account keeps your boards, edits and canvases together across devices. Everything on the site works without one.
       </p>
     </SidePanel>
   )

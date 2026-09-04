@@ -11,6 +11,7 @@ import Viewer from './components/Viewer'
 import ContactSheet from './components/ContactSheet'
 import CanvasStudio from './components/CanvasStudio'
 import { canvasStore, lastCanvasId } from './lib/canvas'
+import Intro, { introSeen, markIntroSeen } from './components/Intro'
 import { AccountPanel, BoardsPanel, Filters, PatentFilters, SaveToBoard, StatusPanel } from './components/Panels'
 
 const HINTS: Record<Tool, string[]> = {
@@ -45,6 +46,7 @@ export default function App() {
   const [tool, setTool] = useState<Tool>(initial.tool)
   const [items, setItems] = useState<Item[]>([])
   const [total, setTotal] = useState(0)
+  const [intro, setIntro] = useState(() => !introSeen())
   const [perSource, setPerSource] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -335,6 +337,7 @@ export default function App() {
           </nav>
           <div className="right">
             <span className="faint">{tool === 'patents' ? 'Google Patents · live' : status ? `${status.total.toLocaleString()} objects · ${status.sources.length} sources` : ''}</span>
+            <button className="btn link about-link" onClick={() => setIntro(true)}>About</button>
           </div>
         </div>
         <form
@@ -490,12 +493,13 @@ export default function App() {
           onFavorite={toggleFavorite}
         />
       )}
+      {intro && <Intro total={status?.total} onClose={() => { markIntroSeen(); setIntro(false) }} />}
       {panel === 'account' && (
         <AccountPanel
           auth={auth}
           onClose={() => setPanel(null)}
-          onSignIn={async (action, u, pw) => {
-            await signIn(action, u, pw)
+          onSignIn={async (action, u, pw, em) => {
+            await signIn(action, u, pw, em)
             say(action === 'signup' ? `Welcome, ${u}! Boards now sync to your account.` : `Signed in as ${u} — boards synced.`)
           }}
           onSignOut={() => {

@@ -1,0 +1,32 @@
+// Prod verification: full bg catalog, named canvases, reopen-last behavior.
+import { chromium, devices } from 'playwright'
+const browser = await chromium.launch()
+const page = await browser.newPage({ ...devices['iPhone 13'] })
+page.on('pageerror', (e) => console.log('PAGEERROR:', e.message))
+page.on('dialog', async (d) => { await d.accept(d.type() === 'prompt' ? 'Poster ideas' : undefined) })
+
+await page.goto('https://open-collections.com/', { waitUntil: 'domcontentloaded' })
+await page.waitForTimeout(1200)
+await page.click('button:has-text("Canvas")')
+await page.waitForSelector('.canvas-studio', { timeout: 8000 })
+const opts = await page.$$eval('.canvas-dock select option', (os) => os.map((o) => o.value).filter((v) => v.startsWith('paper:')))
+console.log('bg sheet options:', opts.length, '| edge included:', opts.includes('paper:deckle-white'), opts.includes('paper:swatch-navy'), opts.includes('paper:ripped-kraft'))
+// named new canvas via menu prompt
+await page.click('.vtop button:has-text("☰")')
+await page.waitForTimeout(500)
+await page.click('button:has-text("New canvas")')
+await page.waitForTimeout(800)
+console.log('title after create:', await page.locator('.vtop .btn.link').textContent())
+// leave and re-enter: should reopen "Poster ideas" (last opened)
+await page.click('.vtop button:has-text("Back")')
+await page.waitForTimeout(600)
+await page.click('button:has-text("Canvas")')
+await page.waitForTimeout(800)
+console.log('reopened canvas:', await page.locator('.vtop .btn.link').textContent())
+// menu shows rename + autosave note
+await page.click('.vtop button:has-text("☰")')
+await page.waitForTimeout(500)
+console.log('rename button:', await page.locator('button:has-text("Rename")').count())
+console.log('autosave note:', (await page.locator('.picker-pop .faint').first().textContent())?.slice(0, 50))
+await page.screenshot({ path: 'data/shots/prod-canvas-menu.png' })
+await browser.close()

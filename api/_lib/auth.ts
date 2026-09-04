@@ -18,6 +18,8 @@ export interface UserRecord {
   hash: string
   salt: string
   createdAt: number
+  email?: string // optional, user's choice: enables password reset + beta features
+  reset?: { codeHash: string; exp: number; tries: number }
 }
 
 export function validUsername(u: string): boolean {
@@ -65,6 +67,14 @@ export async function verifyPassword(pw: string, rec: UserRecord): Promise<boole
   const a = Buffer.from(hash, 'hex')
   const b = Buffer.from(rec.hash, 'hex')
   return a.length === b.length && timingSafeEqual(a, b)
+}
+
+export function validEmail(e: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e) && e.length <= 254
+}
+
+export function codeHash(code: string): string {
+  return createHmac('sha256', SECRET()).update('reset:' + code).digest('hex')
 }
 
 function sign(payload: string): string {

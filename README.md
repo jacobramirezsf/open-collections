@@ -123,12 +123,20 @@ No-key candidates still open: Library of Congress (needs a slow 20 req/min harve
 
 ## Accounts
 
-Optional accounts (username + password, no email) sync boards and favorites across browsers and
-devices. Sessions are 180-day HMAC-signed cookies (`SESSION_SECRET` env); passwords are salted
-scrypt hashes; user data is stored in the project's Vercel Blob store as immutable per-save
-snapshots (`userdata/{user}/{timestamp}.json` — overwriting a single blob is unsafe because Blob
-overwrites can take ~60 s to propagate). Signed-out use keeps everything in localStorage; signing
-in union-merges local and cloud. There is no email, so there is no password recovery.
+Optional accounts sync boards, edits and canvases across browsers and devices. Sessions are
+180-day HMAC-signed cookies (`SESSION_SECRET` env); passwords are salted scrypt hashes; user data
+is stored in the project's Vercel Blob store as immutable per-save snapshots
+(`userdata/{user}/{timestamp}.json` — overwriting a single blob is unsafe because Blob overwrites
+can take ~60 s to propagate). Signed-out use keeps everything in localStorage; signing in
+union-merges local and cloud.
+
+**Email is optional and the user's choice.** A username + password account works exactly the same
+without one, but has no password recovery. Adding an email (at signup or later, in the Account
+panel) enables a six-digit reset code and marks the account for early access to experimental
+tools. Reset codes are HMAC-hashed, expire in 15 minutes, allow 5 tries, and `forgot` always
+answers identically so it never reveals which accounts exist. Sending needs `RESEND_API_KEY`
+(and optionally `AUTH_EMAIL_FROM`, a verified sender); without it the endpoint returns a clean
+501 and the UI says reset-by-email isn't set up yet.
 
 ## Boards, selection, downloads
 
