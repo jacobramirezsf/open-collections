@@ -116,3 +116,8 @@
 2:51:03 PM [vite] (client) hmr update /src/App.tsx, /src/components/Viewer.tsx, /src/components/Editor.tsx, /src/components/CanvasStudio.tsx
 2:51:03 PM [vite] (client) hmr update /src/App.tsx, /src/components/Viewer.tsx, /src/components/Editor.tsx, /src/components/CanvasStudio.tsx, /src/components/Grid.tsx
 2:51:03 PM [vite] (client) hmr update /src/App.tsx, /src/components/Editor.tsx, /src/components/CanvasStudio.tsx, /src/components/Panels.tsx
+2:55:30 PM [vite] (client) hmr update /src/styles.css
+2:56:12 PM [vite] (client) hmr update /src/App.tsx
+2:56:12 PM [vite] (client) hmr update /src/styles.css
+2:57:00 PM [vite] (client) hmr update /src/styles.css
+2:57:57 PM [vite] (client) hmr update /src/styles.css

@@ -338,7 +338,6 @@ export default function App() {
           </nav>
           <div className="right">
             <span className="faint">{tool === 'patents' ? 'Google Patents · live' : status ? `${status.total.toLocaleString()} objects · ${status.sources.length} sources` : ''}</span>
-            <button className="btn link about-link" onClick={() => setIntro(true)}>About</button>
           </div>
         </div>
         <form
@@ -370,6 +369,7 @@ export default function App() {
           >
             Canvas
           </button>
+          <button className="btn about-link" onClick={() => setIntro(true)}>About</button>
           <button className={'btn' + (auth.user ? ' active' : '')} onClick={() => setPanel('account')} title={auth.user ? `Signed in as ${auth.user}` : 'Sign in to sync boards'}>
             {auth.user ? `@${auth.user}` : 'Sign in'}
           </button>
