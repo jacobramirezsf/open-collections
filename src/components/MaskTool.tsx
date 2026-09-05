@@ -396,11 +396,11 @@ export default function MaskTool({ original, current, onApply, onClose }: Props)
         </div>
         <div className="controls-wrap" style={{ marginTop: 8 }}>
           <label className="slider">
-            <span className="label">Brush size — {size}px</span>
+            <span className="label">Brush size · {size}px</span>
             <input type="range" min={10} max={140} step={2} value={size} onChange={(e) => setSize(Number(e.target.value))} />
           </label>
           <label className="slider">
-            <span className="label">Softness — {Math.round(soft * 100)}%</span>
+            <span className="label">Softness · {Math.round(soft * 100)}%</span>
             <input type="range" min={0} max={1} step={0.05} value={soft} onChange={(e) => setSoft(Number(e.target.value))} />
           </label>
         </div>

@@ -11,6 +11,7 @@ export interface CanvasPiece {
   w: number // natural aspect (w/h) captured at add time
   h: number
   title?: string
+  hi?: string // full-resolution source, used only when exporting
 }
 
 export interface CanvasDoc {
@@ -87,6 +88,13 @@ export const canvasStore = {
     listeners.add(fn)
     return () => listeners.delete(fn)
   },
+}
+
+// The Canvas button always starts fresh. An untouched blank is reused so repeated taps don't
+// pile up empty "Canvas 7, Canvas 8…" entries; anything you actually worked on is left alone.
+export function openNewCanvas(): CanvasDoc {
+  const blank = docs.find((d) => !d.pieces.length && d.updatedAt === d.createdAt)
+  return blank || canvasStore.create()
 }
 
 // last-opened canvas, so the toolbar button returns you to the one you were working on

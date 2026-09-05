@@ -10,7 +10,7 @@ import Grid from './components/Grid'
 import Viewer from './components/Viewer'
 import ContactSheet from './components/ContactSheet'
 import CanvasStudio from './components/CanvasStudio'
-import { canvasStore, lastCanvasId } from './lib/canvas'
+import { openNewCanvas } from './lib/canvas'
 import Intro, { introSeen, markIntroSeen } from './components/Intro'
 import { AccountPanel, BoardsPanel, Filters, PatentFilters, SaveToBoard, StatusPanel } from './components/Panels'
 
@@ -149,7 +149,7 @@ export default function App() {
     const qs = p.toString()
     const path = tool === 'patents' ? '/patents' : '/'
     history.replaceState(null, '', path + (qs ? '?' + qs : '') + location.hash)
-    document.title = (query.q ? `${query.q} — ` : '') + (tool === 'patents' ? 'Open Collections · Patents' : 'Open Collections')
+    document.title = (query.q ? `${query.q} · ` : '') + (tool === 'patents' ? 'Open Collections · Patents' : 'Open Collections')
     if (tool === 'patents' && !query.q.trim()) {
       setItems([])
       setTotal(0)
@@ -303,6 +303,7 @@ export default function App() {
   if (view.kind === 'canvas')
     return (
       <CanvasStudio
+        key={view.id}
         id={view.id}
         onClose={() => {
           location.hash = ''
@@ -362,8 +363,7 @@ export default function App() {
           <button
             className="btn"
             onClick={() => {
-              const last = lastCanvasId()
-              const d = (last && canvasStore.get(last)) || canvasStore.list()[0] || canvasStore.create('My canvas')
+              const d = openNewCanvas()
               location.hash = `#/canvas/${d.id}`
               setView({ kind: 'canvas', id: d.id })
             }}
@@ -420,7 +420,7 @@ export default function App() {
               {selected.size > 0 && <button className="btn small danger" onClick={() => { [...selected].forEach((id) => boardStore.removeItem(board.id, id)); setSelected(new Set()) }}>Remove selected from board</button>}
             </>
           )}
-          {view.kind === 'similar' && <span className="faint">Similarity is computed in your browser from the images already loaded — load more results for a wider pool.</span>}
+          {view.kind === 'similar' && <span className="faint">Similarity is computed in your browser from the images already loaded. Load more results for a wider pool.</span>}
         </div>
       )}
       {view.kind === 'search' && query.q && !loading && !error && items.length === 0 && (
@@ -432,7 +432,7 @@ export default function App() {
       {view.kind === 'search' && !query.q && items.length === 0 && !loading && (
         <div className="empty">
           {tool === 'patents' ? (
-            <p>Browse patent drawings from Google Patents — an image-first view of a century of invention. Downloads, boards and the halftone editor all work here too.</p>
+            <p>Browse patent drawings from Google Patents, an image-first view of a century of invention. Downloads, boards and the halftone editor all work here too.</p>
           ) : (
             <p>Search across {status ? status.total.toLocaleString() : 'hundreds of thousands of'} open-access objects from museums, archives and 3D repositories.</p>
           )}
@@ -476,6 +476,19 @@ export default function App() {
           <button className="btn" onClick={(e) => openSave(selectedItems, e.currentTarget)}>Save to board</button>
           {selectedItems.length === 1 && selectedItems[0].contentType === 'image' && <button className="btn" onClick={() => similarTo(selectedItems[0])}>Similar</button>}
           <button className="btn" onClick={() => setView({ kind: 'sheet', title: query.q || board?.name || 'Selection', items: selectedItems })}>Contact sheet</button>
+          {board && (
+            <button
+              className="btn danger"
+              onClick={() => {
+                const n = selected.size
+                ;[...selected].forEach((id) => boardStore.removeItem(board.id, id))
+                setSelected(new Set())
+                say(`Removed ${n} ${n === 1 ? 'item' : 'items'} from ${board.name}.`)
+              }}
+            >
+              Remove from {board.name}
+            </button>
+          )}
           <button className="btn" onClick={() => setSelected(new Set(shown.map((i) => i.id)))}>All ({shown.length})</button>
           <button className="btn" onClick={() => { setSelected(new Set()); setSelectMode(false) }}>Clear</button>
         </div>
@@ -500,7 +513,7 @@ export default function App() {
           onClose={() => setPanel(null)}
           onSignIn={async (action, u, pw, em) => {
             await signIn(action, u, pw, em)
-            say(action === 'signup' ? `Welcome, ${u}! Boards now sync to your account.` : `Signed in as ${u} — boards synced.`)
+            say(action === 'signup' ? `Welcome, ${u}! Boards now sync to your account.` : `Signed in as ${u}. Boards synced.`)
           }}
           onSignOut={() => {
             void signOut()
@@ -546,10 +559,10 @@ export default function App() {
         <div className="pop" style={{ bottom: 64, left: Math.max(8, Math.min(window.innerWidth - 290, dlPop.getBoundingClientRect().left - 40)) }}>
           <span className="label">Download {selected.size} item{selected.size === 1 ? '' : 's'}</span>
           <div className="list">
-            <button onClick={() => downloadSelected('files', 'orig')}>Individual files — originals <span>best</span></button>
-            <button onClick={() => downloadSelected('files', 'view')}>Individual files — large JPG <span>fast</span></button>
-            <button onClick={() => downloadSelected('zip', 'orig')}>One ZIP — originals</button>
-            <button onClick={() => downloadSelected('zip', 'view')}>One ZIP — large JPG</button>
+            <button onClick={() => downloadSelected('files', 'orig')}>Individual files · originals <span>best</span></button>
+            <button onClick={() => downloadSelected('files', 'view')}>Individual files · large JPG <span>fast</span></button>
+            <button onClick={() => downloadSelected('zip', 'orig')}>One ZIP · originals</button>
+            <button onClick={() => downloadSelected('zip', 'view')}>One ZIP · large JPG</button>
           </div>
           <div className="faint" style={{ fontSize: 11 }}>Your browser may ask once to allow multiple downloads.</div>
           <button className="btn small" style={{ marginTop: 6 }} onClick={() => setDlPop(null)}>Cancel</button>

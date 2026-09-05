@@ -1,0 +1,62 @@
+// Production verification: intro, background control, pinned export row, mask tool, email signup.
+import { chromium, devices } from 'playwright'
+
+const USER = 'octest-' + Math.random().toString(36).slice(2, 8)
+const browser = await chromium.launch()
+const ctx = await browser.newContext({ ...devices['iPhone 13'] })
+const page = await ctx.newPage()
+page.on('pageerror', (e) => console.log('PAGEERROR:', e.message))
+page.on('console', (m) => { if (m.type() === 'error') console.log('CONSOLE:', m.text().slice(0, 140)) })
+
+await page.goto('https://open-collections.com/', { waitUntil: 'domcontentloaded' })
+await page.waitForTimeout(2000)
+console.log('1. intro on first load:', await page.locator('.intro').count() === 1 ? 'PASS' : 'FAIL')
+console.log('   headline:', await page.locator('.intro-title').textContent(), '|', (await page.locator('.intro-list li').first().textContent()).slice(0, 34))
+await page.click('.intro-actions .btn')
+await page.waitForTimeout(500)
+console.log('2. dismisses:', await page.locator('.intro').count() === 0 ? 'PASS' : 'FAIL')
+await page.reload({ waitUntil: 'domcontentloaded' })
+await page.waitForTimeout(1800)
+console.log('3. stays dismissed:', await page.locator('.intro').count() === 0 ? 'PASS' : 'FAIL', '| About link:', await page.locator('.about-link').isVisible() ? 'visible' : 'MISSING')
+
+// signup with email
+const res = await page.evaluate(async (u) => {
+  const r = await fetch('/api/auth', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'signup', username: u, password: 'testtest123', email: `${u}@example.com` }) })
+  const body = await r.json()
+  const me = await (await fetch('/api/auth', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'me' }) })).json()
+  const forgot = await fetch('/api/auth', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'forgot', username: u }) })
+  return { signup: r.status, body, me, forgotStatus: forgot.status, forgotBody: await forgot.json() }
+}, USER)
+console.log('4. signup w/ email:', res.signup === 200 ? 'PASS' : 'FAIL', '| stored email:', res.me.email)
+console.log('5. forgot endpoint:', res.forgotStatus, JSON.stringify(res.forgotBody).slice(0, 90))
+
+// editor: background control + pinned export + mask tool
+await page.fill('input[type="search"], .searchbar input', 'tulip painting')
+await page.keyboard.press('Enter')
+await page.waitForSelector('.card img.loaded', { timeout: 30000 })
+await page.click('.card >> nth=0')
+await page.waitForSelector('.viewer', { timeout: 15000 })
+await page.click('button:has-text("Edit")')
+await page.waitForTimeout(2500)
+const opts = await page.$$eval('.ctl.row select option', (os) => os.map((o) => o.textContent))
+console.log('6. one Background control:', opts.length > 30 && opts[0] === 'Color…' ? `PASS (${opts.length} options)` : 'FAIL ' + opts.slice(0, 3))
+const vh = page.viewportSize().height
+const bar = await page.locator('.export-actions').boundingBox()
+console.log('7. export row pinned on screen:', bar && bar.y + bar.height <= vh + 1 ? 'PASS' : 'FAIL')
+const chips = await page.$$eval('.editor .chips button', (bs) => bs.map((b) => b.textContent))
+console.log('8. retired chips gone:', !chips.includes('Gradient') && !chips.includes('Paper grain') ? 'PASS' : 'FAIL ' + chips.join(','))
+await page.click('button.mobile-only:has-text("Erase")')
+await page.waitForSelector('.mask-tool', { timeout: 10000 })
+const st = await page.locator('.mask-stage').boundingBox()
+await page.mouse.move(st.x + 70, st.y + st.height / 2)
+await page.mouse.down()
+for (let x = 70; x < st.width - 70; x += 14) await page.mouse.move(st.x + x, st.y + st.height / 2)
+await page.mouse.up()
+await page.waitForTimeout(500)
+console.log('9. mask tool paints + undo armed:', await page.locator('.mask-tool button[aria-label="Undo"]:not([disabled])').count() ? 'PASS' : 'FAIL')
+await page.screenshot({ path: 'data/shots/verify-mask.png' })
+await page.click('button:has-text("Apply")')
+await page.waitForTimeout(1500)
+console.log('10. applied back into editor:', await page.locator('.mask-tool').count() === 0 ? 'PASS' : 'FAIL')
+await page.screenshot({ path: 'data/shots/verify-editor.png' })
+await browser.close()

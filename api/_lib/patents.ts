@@ -106,7 +106,7 @@ export function normalizePatent(r: any): Item | null {
     culture: null,
     place: num.slice(0, 2),
     publicDomain: isUS ? true : null,
-    rightsLabel: isUS ? 'Public record (US patent document)' : 'Patent document — check jurisdiction',
+    rightsLabel: isUS ? 'Public record (US patent document)' : 'Patent document, check jurisdiction',
     licenseUrl: null,
     thumbnailUrl: thumb,
     imageUrl: firstFull,
@@ -139,7 +139,7 @@ export async function searchPatents(p: PatentQuery): Promise<{ items: Item[]; to
   }
   const text = await res.text()
   if (!res.ok || /<title>Sorry/i.test(text) || /automated queries/i.test(text)) {
-    const err = new Error(res.status === 503 || /automated/i.test(text) ? 'Google Patents is rate-limiting searches right now — try again in a minute.' : `Google Patents error (${res.status})`)
+    const err = new Error(res.status === 503 || /automated/i.test(text) ? 'Google Patents is rate-limiting searches right now. Try again in a minute.' : `Google Patents error (${res.status})`)
     ;(err as any).status = 502
     throw err
   }

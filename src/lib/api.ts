@@ -174,7 +174,7 @@ export async function uploadEdit(blob: Blob, mime: string): Promise<string> {
     if (!res.ok) throw new Error(payload?.error || `Save failed (${res.status})`)
     return payload.url as string
   } catch (e) {
-    if ((e as Error).name === 'AbortError') throw new Error('Save timed out — check your connection and try again.')
+    if ((e as Error).name === 'AbortError') throw new Error('Save timed out. Check your connection and try again.')
     throw e
   } finally {
     window.clearTimeout(t)

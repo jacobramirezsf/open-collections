@@ -151,7 +151,7 @@ export function SaveToBoard({ boards, anchor, onPick, onCreate, onClose }: { boa
       <div className="pop" style={style} ref={ref}>
       <span className="label">Save to board</span>
       <div className="list">
-        {boards.length === 0 && <div className="faint" style={{ padding: 6, fontSize: 13 }}>No boards yet — create one below.</div>}
+        {boards.length === 0 && <div className="faint" style={{ padding: 6, fontSize: 13 }}>No boards yet. Create one below.</div>}
         {boards.map((b) => (
           <button key={b.id} onClick={() => onPick(b)}>
             {b.name} <span>{b.items.length}</span>
@@ -384,7 +384,7 @@ export function AccountPanel({ auth, onClose, onSignIn, onSignOut }: {
           <>
             {!editingEmail && (
               <p className="faint" style={{ fontSize: 12, margin: '0 0 8px' }}>
-                No email on file. That&rsquo;s fine — the account works the same without one. Add one if you want to be able to
+                No email on file. That&rsquo;s fine. The account works the same without one. Add one if you want to be able to
                 reset a forgotten password, and to try new tools while they&rsquo;re still being built.
               </p>
             )}
@@ -436,7 +436,7 @@ export function AccountPanel({ auth, onClose, onSignIn, onSignOut }: {
           >
             <p style={{ marginTop: 0, fontSize: 13 }}>
               If your account has an email on file, we&rsquo;ll send a six-digit code to it. Accounts without an email can&rsquo;t be
-              recovered — that&rsquo;s the tradeoff for signing up without one.
+              recovered. That&rsquo;s the tradeoff for signing up without one.
             </p>
             <span className="label">Username</span>
             <input className="input" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" autoFocus style={{ marginBottom: 10 }} />
@@ -497,10 +497,10 @@ export function AccountPanel({ auth, onClose, onSignIn, onSignOut }: {
         <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} style={{ marginBottom: 10 }} />
         {mode === 'signup' && (
           <>
-            <span className="label">Email — optional</span>
+            <span className="label">Email (optional)</span>
             <input className="input" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmailField(e.target.value)} autoComplete="email" style={{ marginBottom: 6 }} />
             <p className="faint" style={{ fontSize: 12, margin: '0 0 10px' }}>
-              Your call. Leave it blank and you get a username-and-password account that works exactly the same — but a
+              Your call. Leave it blank and you get a username-and-password account that works exactly the same, but a
               forgotten password can&rsquo;t be recovered. Add an email and you can reset your password, and you&rsquo;ll get new
               tools to try while they&rsquo;re still being built. Either way it&rsquo;s only used for those two things.
             </p>

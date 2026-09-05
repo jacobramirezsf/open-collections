@@ -41,7 +41,7 @@ export default handler(async (req: Request) => {
   const username = String(body?.username || '').toLowerCase().trim()
   const password = String(body?.password || '')
   const ip = (req.headers.get('x-forwarded-for') || 'local').split(',')[0].trim()
-  if (!throttle('auth:' + ip)) return error('Too many attempts — try again in a few minutes.', 429)
+  if (!throttle('auth:' + ip)) return error('Too many attempts. Try again in a few minutes.', 429)
   if (!validUsername(username)) return error('Username: 3–24 characters, letters/numbers/dashes/underscores, starting with a letter or number.')
   if (action === 'signup') {
     if (password.length < 8) return error('Password must be at least 8 characters.')
@@ -55,7 +55,7 @@ export default handler(async (req: Request) => {
   if (action === 'forgot') {
     // always answer the same way — don't leak which accounts exist or have email on file
     const generic = json({ ok: true, message: 'If that account has an email on file, a reset code is on its way.' }, { headers: { 'cache-control': 'no-store' } })
-    if (!throttle('forgot:' + ip, 5)) return error('Too many attempts \u2014 try again in a few minutes.', 429)
+    if (!throttle('forgot:' + ip, 5)) return error('Too many attempts. Try again in a few minutes.', 429)
     const key = process.env.RESEND_API_KEY
     if (!key) return error('Password reset by email isn\u2019t set up yet.', 501)
     const rec = await readUser(username)

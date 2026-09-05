@@ -54,7 +54,7 @@ export default function Editor({ item, onClose }: Props) {
   useBodyLock()
   const [params, setParams] = useState<HalftoneParams>(HT_DEFAULTS) // halftone-specific
   const [tex, setTex] = useState<TextureParams>({ ...TEXTURE_DEFAULTS }) // shared by other effects
-  const [stack, setStack] = useState<EffectKind[]>(['halftone'])
+  const [stack, setStack] = useState<EffectKind[]>([]) // open on the plain image; effects are opt-in
   const [paperTex, setPaperTex] = useState<string>('none') // PaperTexture or 'img:<slug>'
   const [sheet, setSheet] = useState<HTMLImageElement | null>(null)
   const [sheetMode, setSheetMode] = useState<'ink' | 'behind'>('ink')
@@ -222,7 +222,7 @@ export default function Editor({ item, onClose }: Props) {
       const label = (x: EffectKind) => (x === 'halftone' ? 'Halftone' : effectDef(x).label)
       if (s.includes(k)) {
         const next = s.filter((x) => x !== k)
-        if (next.length >= 1) say(`Removed ${label(k)} — now ${next.map(label).join(' + ')}`)
+        if (next.length >= 1) say(`Removed ${label(k)}. Now ${next.map(label).join(' + ')}`)
         return next
       }
       if (k !== 'halftone') {
@@ -265,9 +265,9 @@ export default function Editor({ item, onClose }: Props) {
     } catch (e) {
       const msg = (e as Error).message
       if (/MIME type|dynamically imported|Importing a module/i.test(msg)) {
-        setError('The app updated in the background — reload the page to enable the cutout tool.')
+        setError('The app updated in the background. Reload the page to enable the cutout tool.')
       } else {
-        setError('On-device cutout failed (' + msg + ') — try the precise cutout.')
+        setError('On-device cutout failed (' + msg + '). Try the precise cutout.')
       }
     } finally {
       setBusy(null)
@@ -374,7 +374,7 @@ export default function Editor({ item, onClose }: Props) {
           saveBlob(blob, file.name)
         }
       } catch (e) {
-        setError('Export failed (' + (e as Error).message + ') — try a smaller size.')
+        setError('Export failed (' + (e as Error).message + '). Try a smaller size.')
       } finally {
         setBusy(null)
       }
@@ -437,7 +437,7 @@ export default function Editor({ item, onClose }: Props) {
           source: 'edits',
           sourceName: 'My edits',
           sourceUrl: item.sourceUrl, // link back to the original record
-          title: `${item.title} — ${label}`,
+          title: `${item.title} · ${label}`,
           creator: `Edited from ${item.sourceName}`,
           dateDisplay: new Date().toLocaleDateString(),
           yearStart: null,
@@ -459,7 +459,7 @@ export default function Editor({ item, onClose }: Props) {
         }
         const board = boardStore.create('Edits', EDITS_ID)
         boardStore.addItems(board.id, [editItem])
-        say(user ? 'Saved to your Edits board' : 'Saved to Edits (this browser) — sign in to sync')
+        say(user ? 'Saved to your Edits board' : 'Saved to Edits (this browser). Sign in to sync.')
       } catch (e) {
         setError((e as Error).message)
       } finally {
@@ -579,7 +579,7 @@ export default function Editor({ item, onClose }: Props) {
           <h3 className="sec-image-h" style={{ marginTop: 0 }}>Image</h3>
           <div className="actions sec-image">
             <button className="btn" onClick={removeBgLocal} disabled={!!busy || cutoutApplied || !full}>{cutoutApplied ? 'Background removed ✓' : 'Remove background'}</button>
-            <button className="btn" onClick={removeBgPrecise} disabled={!!busy || !full} title="Higher-fidelity cutout for tricky edges — uses studio credits, so try the standard one first">
+            <button className="btn" onClick={removeBgPrecise} disabled={!!busy || !full} title="Higher-fidelity cutout for tricky edges. Uses studio credits, so try the standard one first.">
               Precise cutout
             </button>
             <button className="btn" disabled={!!busy || !full} onClick={() => setRefining(true)} title="Paint away parts of the image, or paint the original back">
@@ -604,7 +604,7 @@ export default function Editor({ item, onClose }: Props) {
                   <button className="btn primary" onClick={() => saveBlob(new Blob([vector.svg], { type: 'image/svg+xml' }), `${baseName}-vector.svg`)}>Download SVG</button>
                   <button className="btn" onClick={() => { URL.revokeObjectURL(vector.url); setVector(null) }}>Back to bitmap</button>
                 </div>
-                <p className="faint hide-mobile" style={{ fontSize: 12, margin: '6px 0 0' }}>{vector.sandbox ? 'Preview-mode result — full-quality vectorization is not enabled yet.' : 'Editable vector shapes — scales to any size.'}</p>
+                <p className="faint hide-mobile" style={{ fontSize: 12, margin: '6px 0 0' }}>{vector.sandbox ? 'Preview-mode result. Full-quality vectorization is not enabled yet.' : 'Editable vector shapes that scale to any size.'}</p>
               </>
             )}
           </div>
@@ -614,7 +614,7 @@ export default function Editor({ item, onClose }: Props) {
             <button type="button" className={'btn small mobile-only' + (cutoutApplied ? ' active' : '')} disabled={!!busy || !full} onClick={() => (cutoutApplied ? restoreOriginal() : void removeBgLocal())}>
               {cutoutApplied ? 'Cutout ✓' : 'Cutout'}
             </button>
-            <button type="button" className="btn small mobile-only" disabled={!!busy || !full} onClick={() => void removeBgPrecise()} title="Higher-fidelity cutout — uses studio credits">
+            <button type="button" className="btn small mobile-only" disabled={!!busy || !full} onClick={() => void removeBgPrecise()} title="Higher-fidelity cutout. Uses studio credits.">
               Precise cutout
             </button>
             <button type="button" className="btn small mobile-only" disabled={!!busy || !full} onClick={() => setRefining(true)}>
@@ -635,14 +635,14 @@ export default function Editor({ item, onClose }: Props) {
 
           {stack.length > 1 && (
             <p className="stackline">
-              Stacked in order: <b>{stack.map((k) => (k === 'halftone' ? 'Halftone' : effectDef(k).label)).join(' → ')}</b> — tap a highlighted chip to remove it.
+              Stacked in order: <b>{stack.map((k) => (k === 'halftone' ? 'Halftone' : effectDef(k).label)).join(' → ')}</b>. Tap a highlighted chip to remove it.
             </p>
           )}
           {controls.length > 0 && (
             <div className="controls-wrap">
               {controls.map((c) => (
                 <div className="ctl" key={c.k}>
-                  <span className="label">{c.label} — {typeof tex[c.k] === 'number' ? (c.step < 1 ? (tex[c.k] as number).toFixed(2) : tex[c.k]) : ''}</span>
+                  <span className="label">{c.label} · {typeof tex[c.k] === 'number' ? (c.step < 1 ? (tex[c.k] as number).toFixed(2) : tex[c.k]) : ''}</span>
                   <input type="range" min={c.min} max={c.max} step={c.step} value={tex[c.k] as number} onChange={(e) => setTex((t) => ({ ...t, [c.k]: Number(e.target.value) }))} />
                 </div>
               ))}
@@ -773,15 +773,15 @@ export default function Editor({ item, onClose }: Props) {
           {htActive && (
             <div className="controls-wrap">
               <div className="ctl">
-                <span className="label">Dot size — {params.cell}px</span>
+                <span className="label">Dot size · {params.cell}px</span>
                 <input type="range" min={4} max={28} step={1} value={params.cell} onChange={(e) => set('cell', Number(e.target.value))} />
               </div>
               <div className="ctl">
-                <span className="label">Angle — {params.angle}°</span>
+                <span className="label">Angle · {params.angle}°</span>
                 <input type="range" min={0} max={90} step={1} value={params.angle} onChange={(e) => set('angle', Number(e.target.value))} />
               </div>
               <div className="ctl">
-                <span className="label">Dot gain — {params.gain.toFixed(2)}</span>
+                <span className="label">Dot gain · {params.gain.toFixed(2)}</span>
                 <input type="range" min={0.5} max={1.6} step={0.05} value={params.gain} onChange={(e) => set('gain', Number(e.target.value))} />
               </div>
               <div className="ctl">
@@ -838,7 +838,7 @@ export default function Editor({ item, onClose }: Props) {
               <button
                 className="btn"
                 disabled={!full || !!busy}
-                title="One vector SVG per ink — C/M/Y/K separations at classic screen angles"
+                title="One vector SVG per ink: C/M/Y/K separations at classic screen angles"
                 onClick={() => {
                   if (!full || !preview) return
                   const cellPx = Math.max(2, tex.size * (full.width / preview.width))
@@ -852,7 +852,7 @@ export default function Editor({ item, onClose }: Props) {
                 Plates
               </button>
             )}
-            <button className="btn" onClick={() => { setParams(HT_DEFAULTS); setTex({ ...TEXTURE_DEFAULTS }); setStack(['halftone']); setPaperTex('none'); setSheet(null); resetView() }}>Reset</button>
+            <button className="btn" onClick={() => { setParams(HT_DEFAULTS); setTex({ ...TEXTURE_DEFAULTS }); setStack([]); setPaperTex('none'); setSheet(null); resetView() }}>Reset</button>
           </div>
           <p className="faint hide-mobile" style={{ fontSize: 12, marginTop: 10 }}>
             Tap texture chips to stack effects in order; tap again to remove. “Save to Edits” keeps the edit on a board with a link to the original work.

@@ -89,7 +89,7 @@ export default function Viewer({ items, index, onClose, onNav, onSave, onSimilar
           ) : (
             <div className="ph">
               <ModelIcon />
-              <div>{is3d ? '3D model — no preview image' : 'Image unavailable'}</div>
+              <div>{is3d ? '3D model · no preview image' : 'Image unavailable'}</div>
             </div>
           )}
           {index > 0 && <button className="nav prev" onClick={() => onNav(index - 1)} aria-label="Previous">‹</button>}
@@ -120,7 +120,7 @@ export default function Viewer({ items, index, onClose, onNav, onSave, onSimilar
                   setBusy(true)
                   setDlError(null)
                   downloadItem(item, 'image')
-                    .catch((e) => setDlError((e as Error).name === 'AbortError' ? 'Download timed out — the source host is slow. Try again or use the original record.' : (e as Error).message))
+                    .catch((e) => setDlError((e as Error).name === 'AbortError' ? 'Download timed out. The source host is slow, so try again or use the original record.' : (e as Error).message))
                     .finally(() => setBusy(false))
                 }}
               >

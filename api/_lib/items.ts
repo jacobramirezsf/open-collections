@@ -56,7 +56,7 @@ export function rowToItem(r: Row): Item {
   }
   const rights = defaultRights(r.source)
   const publicDomain = r.rights_label != null || !rights ? (r.public_domain == null ? null : r.public_domain === 1) : rights.publicDomain
-  const rightsLabel = r.rights_label ?? rights?.label ?? 'Rights unclear — check source'
+  const rightsLabel = r.rights_label ?? rights?.label ?? 'Rights unclear, check source'
   const licenseUrl = r.rights_label != null ? r.license_url : (rights?.licenseUrl ?? r.license_url)
   return {
     id: r.id,

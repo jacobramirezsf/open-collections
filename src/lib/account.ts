@@ -42,7 +42,7 @@ async function pushNow(): Promise<void> {
     await api('/api/userdata', { method: 'PUT', body: JSON.stringify({ data: { boards: boardStore.list(), canvases: canvasStore.list() } }) })
     state.error = null
   } catch (e) {
-    state.error = 'Sync failed — changes are saved in this browser and will retry.'
+    state.error = 'Sync failed. Changes are saved in this browser and will retry.'
     dirty = true
   } finally {
     state.syncing = false

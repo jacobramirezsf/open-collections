@@ -32,7 +32,7 @@ export default handler(async (req: Request) => {
         if (res.ok || res.status === 206 || isLast) return res
       }
     }
-    return error('The source image could not be fetched — try the original record.', 502)
+    return error('The source image could not be fetched. Try the original record.', 502)
   }
   {
     const f = item.files[Number(which)]

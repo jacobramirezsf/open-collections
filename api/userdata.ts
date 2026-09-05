@@ -39,7 +39,7 @@ export default handler(async (req: Request) => {
   }
   if (req.method === 'PUT' || req.method === 'POST') {
     const text = await req.text()
-    if (text.length > MAX_BYTES) return error('Boards are too large to sync (4 MB limit) — remove some items.', 413)
+    if (text.length > MAX_BYTES) return error('Boards are too large to sync (4 MB limit). Remove some items.', 413)
     let body: any
     try {
       body = JSON.parse(text)

@@ -107,7 +107,7 @@ async function downloadItemInner(item: Item, fileIdx: number | 'image', signal: 
         last = e as Error
       }
     }
-    if (!res.ok) throw new Error(`This image's host is blocking downloads — open the original record to save it. (${last.message})`)
+    if (!res.ok) throw new Error(`This image's host is blocking downloads. Open the original record to save it. (${last.message})`)
   }
   if (!res.ok) throw new Error(`Download failed (${res.status})`)
   saveBlob(await res.blob(), name)
