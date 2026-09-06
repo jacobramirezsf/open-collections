@@ -472,3 +472,10 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-2)
 .zoombar { position: absolute; left: 10px; bottom: 10px; display: flex; gap: 4px; z-index: 6; }
 .zoombar button { width: 32px; height: 32px; border-radius: 4px; border: 1px solid var(--line-2); background: var(--bg); cursor: pointer; }
 .zoombar .zoomlabel { width: auto; padding: 0 8px; font-size: 12px; }
+
+.opacity-ctl { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; font-size: 11px; color: var(--fg-3); }
+.opacity-ctl input[type="range"] { width: 90px; }
+@media (pointer: fine) and (min-width: 900px) {
+  .canvas-dock .opacity-ctl { flex: 1 1 100%; }
+  .canvas-dock .opacity-ctl input[type="range"] { flex: 1 1 auto; width: auto; }
+}

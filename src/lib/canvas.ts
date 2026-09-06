@@ -1,5 +1,31 @@
 import type { TextProps } from './textpiece'
 
+// Blend modes shared by the preview (CSS mix-blend-mode) and the export (canvas compositing);
+// the names line up in both, so what you see on the artboard is what gets rendered.
+export type BlendMode =
+  | 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten'
+  | 'color-burn' | 'color-dodge' | 'hard-light' | 'soft-light'
+  | 'difference' | 'exclusion' | 'hue' | 'saturation' | 'color' | 'luminosity'
+
+export const BLEND_MODES: { key: BlendMode; label: string }[] = [
+  { key: 'normal', label: 'Normal' },
+  { key: 'multiply', label: 'Multiply' },
+  { key: 'screen', label: 'Screen' },
+  { key: 'overlay', label: 'Overlay' },
+  { key: 'darken', label: 'Darken' },
+  { key: 'lighten', label: 'Lighten' },
+  { key: 'color-burn', label: 'Color burn' },
+  { key: 'color-dodge', label: 'Color dodge' },
+  { key: 'hard-light', label: 'Hard light' },
+  { key: 'soft-light', label: 'Soft light' },
+  { key: 'difference', label: 'Difference' },
+  { key: 'exclusion', label: 'Exclusion' },
+  { key: 'hue', label: 'Hue' },
+  { key: 'saturation', label: 'Saturation' },
+  { key: 'color', label: 'Color' },
+  { key: 'luminosity', label: 'Luminosity' },
+]
+
 // Canvas documents: arrange saved edits / board items / uploaded images on one artboard.
 // Stored like boards (localStorage, cloud-synced for signed-in users via the same userdata payload).
 export interface CanvasPiece {
@@ -16,6 +42,8 @@ export interface CanvasPiece {
   hi?: string // full-resolution source, used only when exporting
   text?: TextProps // set when this piece is lettering, so it stays re-editable
   locked?: boolean // pinned in place: not draggable or marquee-selectable on the artboard
+  blend?: BlendMode // how this piece mixes with what is underneath it
+  opacity?: number // 0..1, defaults to 1
 }
 
 export interface CanvasDoc {

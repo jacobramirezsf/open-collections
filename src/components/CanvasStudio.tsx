@@ -2,7 +2,7 @@
 // drag to move, pinch to scale/rotate, layer strip, paper backgrounds, undo, export/share.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { boardStore, type Board } from '../lib/boards'
-import { canvasStore, rememberCanvas, type CanvasDoc, type CanvasPiece } from '../lib/canvas'
+import { BLEND_MODES, canvasStore, rememberCanvas, type BlendMode, type CanvasDoc, type CanvasPiece } from '../lib/canvas'
 import { FONTS, TEXT_DEFAULTS, TEXT_SHAPES, renderTextPiece, type TextProps } from '../lib/textpiece'
 import MaskTool from './MaskTool'
 import { EFFECTS } from '../lib/textures'
@@ -696,7 +696,11 @@ export default function CanvasStudio({ id, onClose }: Props) {
       ctx.translate(p.x * k, p.y * k)
       ctx.rotate((p.rotation * Math.PI) / 180)
       if (p.flipH) ctx.scale(-1, 1)
+      ctx.globalCompositeOperation = (p.blend && p.blend !== 'normal' ? p.blend : 'source-over') as GlobalCompositeOperation
+      ctx.globalAlpha = p.opacity ?? 1
       ctx.drawImage(drawSrc, -wpx / 2, -hpx / 2, wpx, hpx)
+      ctx.globalCompositeOperation = 'source-over'
+      ctx.globalAlpha = 1
       ctx.restore()
     }
     return c
@@ -879,6 +883,8 @@ export default function CanvasStudio({ id, onClose }: Props) {
                   left: p.x * unit - wpx / 2,
                   top: p.y * unit - hpx / 2,
                   transform: `rotate(${p.rotation}deg)${p.flipH ? ' scaleX(-1)' : ''}`,
+                  mixBlendMode: (p.blend && p.blend !== 'normal' ? p.blend : undefined) as React.CSSProperties['mixBlendMode'],
+                  opacity: p.opacity ?? 1,
                 }}
                 onPointerDown={(e) => onPiecePointerDown(e, p)}
               >
@@ -972,6 +978,31 @@ export default function CanvasStudio({ id, onClose }: Props) {
             <span className="faint" style={{ fontSize: 11, alignSelf: 'center', flex: '0 0 auto' }}>
               {selPieces.length === 1 ? 'Selected:' : `${selPieces.length} selected:`}
             </span>
+            {selPieces.length > 0 && (
+              <select
+                className="input btn-like"
+                title="How this piece mixes with what is underneath"
+                value={one?.blend || (selPieces.every((p) => p.blend === selPieces[0].blend) ? selPieces[0].blend || 'normal' : 'normal')}
+                onChange={(e) => mutateSel(() => ({ blend: e.target.value as BlendMode }))}
+              >
+                {BLEND_MODES.map((m) => (
+                  <option key={m.key} value={m.key}>{m.label}</option>
+                ))}
+              </select>
+            )}
+            {selPieces.length > 0 && (
+              <label className="opacity-ctl" title="Opacity">
+                <input
+                  type="range"
+                  min={0.05}
+                  max={1}
+                  step={0.05}
+                  value={one?.opacity ?? 1}
+                  onChange={(e) => mutateSel(() => ({ opacity: Number(e.target.value) }))}
+                />
+                <span>{Math.round((one?.opacity ?? 1) * 100)}%</span>
+              </label>
+            )}
             {one && !one.locked && (
               <button
                 className="btn small"
