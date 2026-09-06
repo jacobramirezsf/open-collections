@@ -1,3 +1,5 @@
+import type { TextProps } from './textpiece'
+
 // Canvas documents: arrange saved edits / board items / uploaded images on one artboard.
 // Stored like boards (localStorage, cloud-synced for signed-in users via the same userdata payload).
 export interface CanvasPiece {
@@ -12,6 +14,7 @@ export interface CanvasPiece {
   h: number
   title?: string
   hi?: string // full-resolution source, used only when exporting
+  text?: TextProps // set when this piece is lettering, so it stays re-editable
 }
 
 export interface CanvasDoc {

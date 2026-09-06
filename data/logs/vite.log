@@ -139,3 +139,8 @@
 10:01:59 PM [vite] (client) hmr update /src/styles.css
 10:05:14 PM [vite] (client) hmr update /src/components/CropTool.tsx
 10:05:14 PM [vite] (client) hmr update /src/styles.css
+10:09:29 PM [vite] (client) page reload index.html
+10:10:09 PM [vite] (client) hmr update /src/App.tsx, /src/components/CanvasStudio.tsx, /src/components/Editor.tsx, /src/components/Panels.tsx
+10:10:09 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx
+10:10:09 PM [vite] (client) hmr update /src/styles.css
+10:11:23 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx

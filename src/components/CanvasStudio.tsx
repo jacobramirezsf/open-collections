@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { boardStore, type Board } from '../lib/boards'
 import { canvasStore, rememberCanvas, type CanvasDoc, type CanvasPiece } from '../lib/canvas'
+import { FONTS, TEXT_DEFAULTS, renderTextPiece, type TextProps } from '../lib/textpiece'
+import { EFFECTS } from '../lib/textures'
 import { PAPER_SHEETS, paperUrl, sheetDef } from '../lib/papers'
 import { proxyImageUrl, uploadEdit } from '../lib/api'
 import { saveImage } from '../lib/save'
@@ -47,6 +49,7 @@ export default function CanvasStudio({ id, onClose }: Props) {
   const [selected, setSelected] = useState<string[]>([])
   const [marquee, setMarquee] = useState<null | { x0: number; y0: number; x1: number; y1: number }>(null)
   const [exportScale, setExportScale] = useState(2)
+  const [textEdit, setTextEdit] = useState<null | { id: string | null; props: TextProps }>(null)
   const [picker, setPicker] = useState(false)
   const [menu, setMenu] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
@@ -478,6 +481,45 @@ export default function CanvasStudio({ id, onClose }: Props) {
     return () => el.removeEventListener('wheel', onWheel)
   }, [])
 
+  // ---- lettering ----
+  const commitText = useCallback(
+    async (pieceId: string | null, props: TextProps) => {
+      setBusy('Setting type…')
+      try {
+        const c = await renderTextPiece(props)
+        const src = c.toDataURL('image/png')
+        const cur = canvasStore.get(id)
+        if (!cur) return
+        snapshot()
+        if (pieceId) {
+          canvasStore.update(id, {
+            pieces: cur.pieces.map((p) => (p.id === pieceId ? { ...p, src, w: c.width, h: c.height, text: props, title: props.value.slice(0, 40) } : p)),
+          })
+        } else {
+          const piece: CanvasPiece = {
+            id: Math.random().toString(36).slice(2, 9),
+            src,
+            x: CANVAS_W / 2,
+            y: canvasH / 2,
+            scale: 0.8,
+            rotation: 0,
+            w: c.width,
+            h: c.height,
+            title: props.value.slice(0, 40),
+            text: props,
+          }
+          canvasStore.update(id, { pieces: [...cur.pieces, piece] })
+          setSelected([piece.id])
+        }
+      } catch (e) {
+        say('Could not set that type: ' + (e as Error).message)
+      } finally {
+        setBusy(null)
+      }
+    },
+    [id, canvasH, snapshot, say],
+  )
+
   // ---- export ----
   const renderCanvas = useCallback(async (scale = exportScale): Promise<HTMLCanvasElement> => {
     if (!doc) throw new Error('no canvas')
@@ -728,6 +770,7 @@ export default function CanvasStudio({ id, onClose }: Props) {
       <div className="canvas-dock">
         <div className="chips" style={{ margin: 0 }}>
           <button className="btn small primary" onClick={() => setPicker(true)}>+ Add image</button>
+          <button className="btn small" onClick={() => setTextEdit({ id: null, props: { ...TEXT_DEFAULTS } })}>+ Add text</button>
           <select className="input btn-like" value={doc.background.startsWith('paper:') ? doc.background : doc.background === 'transparent' ? 'transparent' : 'color'} onChange={(e) => {
             const v = e.target.value
             snapshot()
@@ -780,6 +823,9 @@ export default function CanvasStudio({ id, onClose }: Props) {
             <span className="faint" style={{ fontSize: 11, alignSelf: 'center', flex: '0 0 auto' }}>
               {selPieces.length === 1 ? 'Selected:' : `${selPieces.length} selected:`}
             </span>
+            {one?.text && (
+              <button className="btn small" onClick={() => setTextEdit({ id: one.id, props: one.text! })}>Edit text</button>
+            )}
             <button className="btn small" onClick={() => mutateSel((p) => ({ flipH: !p.flipH }))}>Flip</button>
             <button className="btn small" onClick={() => mutateSel(() => ({ rotation: 0 }))}>Straighten</button>
             <button className="btn small" onClick={duplicateSel}>Duplicate</button>
@@ -798,6 +844,17 @@ export default function CanvasStudio({ id, onClose }: Props) {
         )}
       </div>
 
+      {textEdit && (
+        <TextSheet
+          initial={textEdit.props}
+          isNew={!textEdit.id}
+          onClose={() => setTextEdit(null)}
+          onApply={(props) => {
+            void commitText(textEdit.id, props)
+            setTextEdit(null)
+          }}
+        />
+      )}
       {picker && <AddPicker onAdd={addFromItem} onUpload={addUpload} onClose={() => setPicker(false)} />}
       {menu && (
         <CanvasMenu
@@ -811,6 +868,82 @@ export default function CanvasStudio({ id, onClose }: Props) {
       )}
       {toast && <div className="toast">{toast}</div>}
     </div>
+  )
+}
+
+function TextSheet({ initial, isNew, onApply, onClose }: { initial: TextProps; isNew: boolean; onApply: (p: TextProps) => void; onClose: () => void }) {
+  const [p, setP] = useState<TextProps>(initial)
+  const set = <K extends keyof TextProps>(k: K, v: TextProps[K]) => setP((cur) => ({ ...cur, [k]: v }))
+  const font = FONTS.find((f) => f.css === p.font) || FONTS[0]
+  return (
+    <>
+      <div className="backdrop" style={{ zIndex: 86 }} onClick={onClose} />
+      <div className="pop text-pop" style={{ zIndex: 87 }} role="dialog" aria-modal="true">
+        <span className="label">{isNew ? 'Add text' : 'Edit text'}</span>
+        <textarea
+          className="input"
+          rows={2}
+          value={p.value}
+          autoFocus
+          onChange={(e) => set('value', e.target.value)}
+          style={{ fontFamily: p.font, fontWeight: p.weight, fontStyle: p.italic ? 'italic' : 'normal', fontSize: 18, marginBottom: 8, resize: 'vertical' }}
+        />
+        <div className="controls-wrap" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
+          <div>
+            <span className="label">Typeface</span>
+            <select className="input" value={p.font} onChange={(e) => { const f = FONTS.find((x) => x.css === e.target.value)!; setP((cur) => ({ ...cur, font: f.css, weight: f.weights.includes(cur.weight) ? cur.weight : f.weights[0] })) }}>
+              {FONTS.map((f) => (
+                <option key={f.css} value={f.css}>{f.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <span className="label">Weight</span>
+            <select className="input" value={String(p.weight)} onChange={(e) => set('weight', Number(e.target.value))}>
+              {font.weights.map((w) => (
+                <option key={w} value={String(w)}>{w === 400 ? 'Regular' : w === 700 ? 'Bold' : w === 900 ? 'Black' : String(w)}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <span className="label">Colour</span>
+            <div className="row" style={{ gap: 8 }}>
+              <input type="color" value={p.color} onChange={(e) => set('color', e.target.value)} />
+              <label className="check"><input type="checkbox" checked={p.italic} onChange={(e) => set('italic', e.target.checked)} /> Italic</label>
+            </div>
+          </div>
+          <div>
+            <span className="label">Align</span>
+            <div className="seg">
+              {(['left', 'center', 'right'] as const).map((a) => (
+                <button key={a} type="button" className={p.align === a ? 'active' : ''} onClick={() => set('align', a)}>{a}</button>
+              ))}
+            </div>
+          </div>
+          <label className="slider">
+            <span className="label">Tracking · {p.tracking.toFixed(2)}em</span>
+            <input type="range" min={-0.08} max={0.5} step={0.01} value={p.tracking} onChange={(e) => set('tracking', Number(e.target.value))} />
+          </label>
+          <label className="slider">
+            <span className="label">Leading · {p.leading.toFixed(2)}</span>
+            <input type="range" min={0.85} max={2} step={0.01} value={p.leading} onChange={(e) => set('leading', Number(e.target.value))} />
+          </label>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <span className="label">Effect</span>
+            <select className="input" value={p.effect || 'none'} onChange={(e) => set('effect', e.target.value as TextProps['effect'])}>
+              <option value="none">None</option>
+              {EFFECTS.map((e2) => (
+                <option key={e2.key} value={e2.key}>{e2.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="row" style={{ marginTop: 10 }}>
+          <button className="btn primary" onClick={() => onApply(p)} disabled={!p.value.trim()}>{isNew ? 'Add to canvas' : 'Update'}</button>
+          <button className="btn" onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </>
   )
 }
 

@@ -425,3 +425,6 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-2)
 .crop-h.se { right: -15px; bottom: -15px; cursor: nwse-resize; }
 .crop-dock { flex: 0 0 auto; padding: 10px 12px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--bg); }
 .crop-dock .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
+
+.text-pop { max-width: 440px; }
+.text-pop textarea.input { width: 100%; line-height: 1.2; }
