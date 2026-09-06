@@ -433,7 +433,7 @@ export default function App() {
       {view.kind === 'search' && !query.q && items.length === 0 && !loading && (
         <div className="empty">
           {tool === 'patents' ? (
-            <p>Browse patent drawings from Google Patents, an image-first view of a century of invention. Downloads, boards and the halftone editor all work here too.</p>
+            <p>Browse patent drawings from Google Patents. Downloads, boards and the halftone editor all work here too.</p>
           ) : (
             <p>Search across {status ? status.total.toLocaleString() : 'hundreds of thousands of'} open-access objects from museums, archives and 3D repositories.</p>
           )}
