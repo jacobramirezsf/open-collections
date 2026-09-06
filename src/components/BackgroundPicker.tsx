@@ -46,9 +46,7 @@ interface Props {
 }
 
 export default function BackgroundPicker({ value, color, rotate, onPick, onColor, onRotate, onClose }: Props) {
-  const [openGarment, setOpenGarment] = useState<string | null>(
-    value.startsWith('garment:') ? value.slice(8).split('/')[0] : null,
-  )
+  const [openGarment, setOpenGarment] = useState<string | null>(null)
   const pick = (v: string) => {
     onPick(v)
     onClose()
@@ -60,6 +58,29 @@ export default function BackgroundPicker({ value, color, rotate, onPick, onColor
       <span className="bg-name">{label}</span>
     </button>
   )
+  const garment = openGarment ? GARMENTS.find((g) => g.id === openGarment) : null
+  if (garment) {
+    return (
+      <>
+        <div className="backdrop" style={{ zIndex: 86 }} onClick={onClose} />
+        <div className="pop bg-pop" style={{ zIndex: 87 }} role="dialog" aria-modal="true">
+          <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
+            <button className="btn small" onClick={() => setOpenGarment(null)}>← All backgrounds</button>
+            <button className="btn small" onClick={onClose}>Done</button>
+          </div>
+          <h4 className="picker-h" style={{ marginTop: 0 }}>{garment.label} · pick a colour</h4>
+          <div className="bg-scroll">
+            <div className="bg-grid">
+              {garment.colors.map((c) => (
+                <Tile key={c.slug} v={`garment:${garment.id}/${c.slug}`} label={c.name} img={garmentUrl(c.file)} />
+              ))}
+            </div>
+          </div>
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
       <div className="backdrop" style={{ zIndex: 86 }} onClick={onClose} />
@@ -109,31 +130,20 @@ export default function BackgroundPicker({ value, color, rotate, onPick, onColor
           ))}
 
           <h4 className="picker-h">Clothing</h4>
-          <p className="faint" style={{ fontSize: 12, margin: '0 0 8px' }}>Pick a piece, then a colour.</p>
           <div className="bg-grid">
             {GARMENTS.map((g) => (
               <button
                 key={g.id}
-                className={'bg-tile' + (openGarment === g.id ? ' open' : '') + (value.startsWith('garment:' + g.id + '/') ? ' sel' : '')}
-                onClick={() => setOpenGarment(openGarment === g.id ? null : g.id)}
+                className={'bg-tile' + (value.startsWith('garment:' + g.id + '/') ? ' sel' : '')}
+                onClick={() => setOpenGarment(g.id)}
+                title={`${g.label} — ${g.colors.length} colours`}
               >
                 <span className="bg-thumb fit"><img src={garmentUrl(g.colors[0].file)} alt="" loading="lazy" /></span>
                 <span className="bg-name">{g.label}</span>
+                <span className="bg-sub-name">{g.colors.length} colours</span>
               </button>
             ))}
           </div>
-          {openGarment && (
-            <div className="bg-sub">
-              <h4 className="picker-h" style={{ marginTop: 0 }}>
-                {GARMENTS.find((g) => g.id === openGarment)?.label} colours
-              </h4>
-              <div className="bg-grid">
-                {GARMENTS.find((g) => g.id === openGarment)?.colors.map((c) => (
-                  <Tile key={c.slug} v={`garment:${openGarment}/${c.slug}`} label={c.name} img={garmentUrl(c.file)} />
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </>

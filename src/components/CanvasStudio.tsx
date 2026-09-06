@@ -13,6 +13,33 @@ import { useBodyLock } from './Panels'
 import type { Item } from '../../shared/types'
 
 const CANVAS_W = 1000 // internal units; height = CANVAS_W / aspect
+
+// Enlarging a small source in one jump gives mush; doubling repeatedly with smoothing on keeps far
+// more of the weave and stitching, which matters because the garment photographs are only ~750px.
+function upscale(img: CanvasImageSource, tw: number, th: number): HTMLCanvasElement {
+  let w = (img as HTMLImageElement).naturalWidth || (img as HTMLCanvasElement).width
+  let h = (img as HTMLImageElement).naturalHeight || (img as HTMLCanvasElement).height
+  let cur: CanvasImageSource = img
+  while (w * 2 <= tw) {
+    w = Math.min(tw, w * 2)
+    h = Math.min(th, h * 2)
+    const step = document.createElement('canvas')
+    step.width = w
+    step.height = h
+    const sc = step.getContext('2d')!
+    sc.imageSmoothingQuality = 'high'
+    sc.drawImage(cur, 0, 0, w, h)
+    cur = step
+  }
+  if (cur === img) {
+    const one = document.createElement('canvas')
+    one.width = w
+    one.height = h
+    one.getContext('2d')!.drawImage(img, 0, 0, w, h)
+    return one
+  }
+  return cur as HTMLCanvasElement
+}
 const isTouch = () => typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
 
 interface Props {
@@ -55,6 +82,8 @@ export default function CanvasStudio({ id, onClose }: Props) {
   const [textEdit, setTextEdit] = useState<null | { id: string | null; props: TextProps }>(null)
   const [bgPicker, setBgPicker] = useState(false)
   const [bgNatural, setBgNatural] = useState<{ w: number; h: number } | null>(null)
+  const [view, setView] = useState({ z: 1, x: 0, y: 0 }) // artboard zoom and pan
+  const pan = useRef<null | { x: number; y: number; vx: number; vy: number }>(null)
   const [picker, setPicker] = useState(false)
   const [menu, setMenu] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
@@ -67,7 +96,8 @@ export default function CanvasStudio({ id, onClose }: Props) {
   const future = useRef<string[]>([])
   const pointers = useRef(new Map<number, { x: number; y: number }>())
   const gesture = useRef<null | {
-    kind: 'move' | 'pinch' | 'handle' | 'marquee'
+    kind: 'move' | 'pinch' | 'handle' | 'marquee' | 'rotate'
+    corner?: 'nw' | 'ne' | 'sw' | 'se'
     ids: string[]
     px: number // pointer position at gesture start, in canvas units
     py: number
@@ -141,7 +171,7 @@ export default function CanvasStudio({ id, onClose }: Props) {
     return () => ro.disconnect()
   }, [])
   const aspect = doc?.aspect ?? 1
-  const boardW = Math.min(stageSize.w - 24, (stageSize.h - 24) * aspect)
+  const boardW = Math.min(stageSize.w - 24, (stageSize.h - 24) * aspect) * view.z
   const boardH = boardW / aspect
   const unit = boardW / CANVAS_W // canvas units → screen px
   const canvasH = CANVAS_W / aspect
@@ -245,7 +275,10 @@ export default function CanvasStudio({ id, onClose }: Props) {
         angle: (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI,
       }
       setMarquee(null)
-    } else if (e.target === boardRef.current || e.target === stageRef.current) {
+    } else if (e.target === stageRef.current) {
+      // the surround pans the view
+      pan.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }
+    } else if (e.target === boardRef.current) {
       // drag across empty canvas to sweep up everything inside the rectangle
       const pt = clientToCanvas(e.clientX, e.clientY)
       gesture.current = { kind: 'marquee', ids: [], px: pt.x, py: pt.y, starts: new Map() }
@@ -254,6 +287,11 @@ export default function CanvasStudio({ id, onClose }: Props) {
   }
 
   const onPointerMove = (e: React.PointerEvent) => {
+    if (pan.current) {
+      const p0 = pan.current
+      setView((v) => ({ ...v, x: p0.vx + (e.clientX - p0.x), y: p0.vy + (e.clientY - p0.y) }))
+      return
+    }
     if (!pointers.current.has(e.pointerId) || !doc) return
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
     const g = gesture.current
@@ -263,6 +301,14 @@ export default function CanvasStudio({ id, onClose }: Props) {
       const dist = Math.hypot(a.x - b.x, a.y - b.y)
       const angle = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI
       transformGroup(g, dist / (g.dist || 1), angle - (g.angle || 0))
+      g.moved = true
+    } else if (g.kind === 'rotate' && pointers.current.size === 1) {
+      const pt = clientToCanvas(e.clientX, e.clientY)
+      const now = (Math.atan2(pt.y - (g.cy || 0), pt.x - (g.cx || 0)) * 180) / Math.PI
+      const st = g.starts.get(g.ids[0])!
+      let deg = st.rotation + (now - (g.angle || 0))
+      if (e.shiftKey) deg = Math.round(deg / 15) * 15 // snap while shift is held
+      updatePieces((p) => (p.id === g.ids[0] ? { rotation: deg } : null))
       g.moved = true
     } else if (g.kind === 'marquee' && pointers.current.size === 1) {
       const pt = clientToCanvas(e.clientX, e.clientY)
@@ -287,13 +333,20 @@ export default function CanvasStudio({ id, onClose }: Props) {
           return st ? { x: st.x + dx, y: st.y + dy } : null
         })
       } else {
-        // corner handle: distance from piece center controls scale
+        // any corner scales about the opposite one, so the piece grows from the corner you grab
         const piece = doc.pieces.find((p) => p.id === g.ids[0])
         const st = g.starts.get(g.ids[0])
         if (piece && st) {
-          const d = Math.hypot(pt.x - piece.x, pt.y - piece.y)
-          const baseHalfDiag = (Math.hypot(500, (500 * piece.h) / piece.w) * st.scale) / 2
-          updatePieces((p) => (p.id === piece.id ? { scale: Math.max(0.05, Math.min(4, (st.scale * d) / Math.max(1, baseHalfDiag))) } : null))
+          const w0 = 500 * st.scale
+          const h0 = (w0 * piece.h) / piece.w
+          const sx = g.corner === 'nw' || g.corner === 'sw' ? -1 : 1
+          const sy = g.corner === 'nw' || g.corner === 'ne' ? -1 : 1
+          const anchor = { x: st.x - (sx * w0) / 2, y: st.y - (sy * h0) / 2 }
+          const d = Math.hypot(pt.x - anchor.x, pt.y - anchor.y)
+          const k = Math.max(0.05, Math.min(4, (st.scale * d) / Math.max(1, Math.hypot(w0, h0))))
+          const w1 = 500 * k
+          const h1 = (w1 * piece.h) / piece.w
+          updatePieces((p) => (p.id === piece.id ? { scale: k, x: anchor.x + (sx * w1) / 2, y: anchor.y + (sy * h1) / 2 } : null))
         }
       }
       g.moved = true
@@ -301,6 +354,7 @@ export default function CanvasStudio({ id, onClose }: Props) {
   }
 
   const endGesture = (e: React.PointerEvent) => {
+    pan.current = null
     pointers.current.delete(e.pointerId)
     if (pointers.current.size === 0 && gesture.current) {
       const g = gesture.current
@@ -332,11 +386,28 @@ export default function CanvasStudio({ id, onClose }: Props) {
     }
   }
 
-  const onHandleDown = (e: React.PointerEvent, p: CanvasPiece) => {
+  const onHandleDown = (e: React.PointerEvent, p: CanvasPiece, corner: 'nw' | 'ne' | 'sw' | 'se') => {
     e.stopPropagation()
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
     snapshot()
-    gesture.current = { kind: 'handle', ids: [p.id], px: 0, py: 0, starts: startsOf([p.id]) }
+    gesture.current = { kind: 'handle', ids: [p.id], px: 0, py: 0, starts: startsOf([p.id]), corner }
+  }
+
+  const onRotateDown = (e: React.PointerEvent, p: CanvasPiece) => {
+    e.stopPropagation()
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    snapshot()
+    const pt = clientToCanvas(e.clientX, e.clientY)
+    gesture.current = {
+      kind: 'rotate',
+      ids: [p.id],
+      px: 0,
+      py: 0,
+      starts: startsOf([p.id]),
+      cx: p.x,
+      cy: p.y,
+      angle: (Math.atan2(pt.y - p.y, pt.x - p.x) * 180) / Math.PI,
+    }
   }
 
   // ---- piece management ----
@@ -493,7 +564,13 @@ export default function CanvasStudio({ id, onClose }: Props) {
     if (!el) return
     const onWheel = (e: WheelEvent) => {
       const L = liveRefs.current
-      if (!L.doc || !L.selPieces.length) return
+      if (!L.doc) return
+      if (!L.selPieces.length || e.ctrlKey || e.metaKey) {
+        // nothing selected (or a pinch-zoom gesture): zoom the whole artboard instead
+        e.preventDefault()
+        setView((v) => ({ ...v, z: Math.max(0.4, Math.min(6, v.z * Math.exp(-e.deltaY * 0.0015))) }))
+        return
+      }
       e.preventDefault()
       if (!wheelLive.current.active) {
         wheelLive.current.active = true
@@ -583,11 +660,14 @@ export default function CanvasStudio({ id, onClose }: Props) {
       const ew = turned ? nh : nw
       const eh = turned ? nw : nh
       // a cut-out sheet or garment keeps its silhouette (contain); a full-bleed paper covers
-      const k = isContainedBackground(bg) ? Math.min(W / ew, H / eh) : Math.max(W / ew, H / eh)
+      const grow = bg.startsWith('garment:') ? 1.16 : 1
+      const k = isContainedBackground(bg) ? Math.min(W / ew, H / eh) * grow : Math.max(W / ew, H / eh)
       ctx.save()
       ctx.translate(W / 2, H / 2)
       ctx.rotate((deg * Math.PI) / 180)
-      ctx.drawImage(img, (-nw * k) / 2, (-nh * k) / 2, nw * k, nh * k)
+      const src = k > 1.8 ? upscale(img, Math.round(nw * k), Math.round(nh * k)) : img
+      ctx.imageSmoothingQuality = 'high'
+      ctx.drawImage(src, (-nw * k) / 2, (-nh * k) / 2, nw * k, nh * k)
       ctx.restore()
     } else if (doc.background !== 'transparent') {
       ctx.fillStyle = doc.background
@@ -608,11 +688,13 @@ export default function CanvasStudio({ id, onClose }: Props) {
       if (!img) continue
       const wpx = 500 * p.scale * k
       const hpx = (wpx * p.h) / p.w
+      const drawSrc = wpx > img.naturalWidth * 1.8 ? upscale(img, Math.round(wpx), Math.round(hpx)) : img
+      ctx.imageSmoothingQuality = 'high'
       ctx.save()
       ctx.translate(p.x * k, p.y * k)
       ctx.rotate((p.rotation * Math.PI) / 180)
       if (p.flipH) ctx.scale(-1, 1)
-      ctx.drawImage(img, -wpx / 2, -hpx / 2, wpx, hpx)
+      ctx.drawImage(drawSrc, -wpx / 2, -hpx / 2, wpx, hpx)
       ctx.restore()
     }
     return c
@@ -732,7 +814,9 @@ export default function CanvasStudio({ id, onClose }: Props) {
     const turned = deg % 180 !== 0
     const ew = turned ? bgNatural.h : bgNatural.w
     const eh = turned ? bgNatural.w : bgNatural.h
-    const k = isContainedBackground(bgVal) ? Math.min(boardW / ew, boardH / eh) : Math.max(boardW / ew, boardH / eh)
+    // garments read better filling more of the board than a strict contain
+    const grow = bgVal.startsWith('garment:') ? 1.16 : 1
+    const k = isContainedBackground(bgVal) ? Math.min(boardW / ew, boardH / eh) * grow : Math.max(boardW / ew, boardH / eh)
     return {
       position: 'absolute',
       left: '50%',
@@ -765,7 +849,7 @@ export default function CanvasStudio({ id, onClose }: Props) {
         onPointerCancel={endGesture}
       >
         {busy && <div className="busy-pill" style={{ position: 'absolute', zIndex: 5 }}>{busy}</div>}
-        <div className="artboard" ref={boardRef} style={{ width: boardW, height: boardH, ...bgStyle }}>
+        <div className="artboard" ref={boardRef} style={{ width: boardW, height: boardH, transform: `translate(${view.x}px, ${view.y}px)`, ...bgStyle }}>
           {bgUrl && bgImgStyle() && <img className="artboard-bg" src={bgUrl} alt="" draggable={false} style={bgImgStyle()!} />}
           {snap.v && <div className="guide gv" />}
           {snap.h && <div className="guide gh" />}
@@ -797,7 +881,14 @@ export default function CanvasStudio({ id, onClose }: Props) {
                 onPointerDown={(e) => onPiecePointerDown(e, p)}
               >
                 <img src={p.src} alt={p.title || ''} draggable={false} />
-                {one?.id === p.id && <span className="scale-handle" onPointerDown={(e) => onHandleDown(e, p)} />}
+                {one?.id === p.id && !p.locked && (
+                  <>
+                    {(['nw', 'ne', 'sw', 'se'] as const).map((c) => (
+                      <span key={c} className={'scale-handle ' + c} onPointerDown={(e) => onHandleDown(e, p, c)} />
+                    ))}
+                    <span className="rotate-handle" onPointerDown={(e) => onRotateDown(e, p)} title="Drag to rotate, hold shift to snap" />
+                  </>
+                )}
               </div>
             )
           })}
@@ -826,6 +917,11 @@ export default function CanvasStudio({ id, onClose }: Props) {
             ))}
           </div>
         )}
+        <div className="zoombar">
+          <button onClick={() => setView((v) => ({ ...v, z: Math.max(0.4, v.z / 1.25) }))} title="Zoom out">−</button>
+          <button className="zoomlabel" onClick={() => setView({ z: 1, x: 0, y: 0 })} title="Fit the canvas">{Math.round(view.z * 100)}%</button>
+          <button onClick={() => setView((v) => ({ ...v, z: Math.min(6, v.z * 1.25) }))} title="Zoom in">+</button>
+        </div>
         {doc.pieces.length === 0 && !busy && (
           <div className="ph" style={{ position: 'absolute', color: '#bdb9af', textAlign: 'center' }}>
             <p style={{ margin: 0 }}>Empty canvas</p>
@@ -868,7 +964,7 @@ export default function CanvasStudio({ id, onClose }: Props) {
           </select>
           <button className="btn small" onClick={saveToEdits} disabled={!!busy || !doc.pieces.length}>Save to Edits</button>
         </div>
-        <p className="desktop-hint faint">Drag empty canvas to select several · scroll to scale · alt+scroll rotates · arrows nudge · [ ] reorder · ⌫ removes</p>
+        <p className="desktop-hint faint">Scroll to zoom the canvas, drag around it to pan · drag empty canvas to select several · scroll to scale · alt+scroll rotates · arrows nudge · [ ] reorder · ⌫ removes</p>
         {selPieces.length > 0 && (
           <div className="chips" style={{ margin: '6px 0 0' }}>
             <span className="faint" style={{ fontSize: 11, alignSelf: 'center', flex: '0 0 auto' }}>

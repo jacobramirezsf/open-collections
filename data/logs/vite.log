@@ -3,9 +3,8 @@
 > vite
 
 
-  VITE v7.3.6  ready in 162 ms
+  VITE v7.3.6  ready in 169 ms
 
   ➜  Local:   http://localhost:5180/
   ➜  Network: use --host to expose
-1:42:50 PM [vite] (client) hmr update /src/components/BackgroundPicker.tsx
-1:42:50 PM [vite] (client) hmr update /src/styles.css
+2:01:09 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx
