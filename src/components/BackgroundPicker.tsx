@@ -4,7 +4,6 @@
 import { useState } from 'react'
 import { PAPER_SHEETS, paperUrl, sheetDef } from '../lib/papers'
 import { GARMENTS, findGarment, garmentUrl } from '../lib/garments'
-import { PAPER_TEXTURES } from '../lib/textures'
 
 export const isSheetValue = (v: string) => v.startsWith('img:') || v.startsWith('garment:')
 
@@ -33,9 +32,7 @@ export function backgroundLabel(value: string): string {
     const g = findGarment(value.slice(8))
     return g ? `${g.product.label} · ${g.color.name}` : 'Garment'
   }
-  return PAPER_TEXTURES.find((t) => t.key === value)?.label === 'Smooth'
-    ? 'Colour'
-    : PAPER_TEXTURES.find((t) => t.key === value)?.label || 'Colour'
+  return 'Colour'
 }
 
 interface Props {
@@ -97,13 +94,6 @@ export default function BackgroundPicker({ value, color, rotate, onPick, onColor
             </button>
           </div>
 
-          <h4 className="picker-h">Colour with a finish</h4>
-          <div className="bg-grid">
-            {PAPER_TEXTURES.filter((t) => t.key !== 'none').map((t) => (
-              <Tile key={t.key} v={t.key} label={t.label} style={{ background: color }} />
-            ))}
-          </div>
-
           {(['paper', 'edge', 'fabric'] as const).map((group) => (
             <div key={group}>
               <h4 className="picker-h">{group === 'paper' ? 'Papers' : group === 'edge' ? 'Deckle and torn edges' : 'Fabric'}</h4>
@@ -116,7 +106,7 @@ export default function BackgroundPicker({ value, color, rotate, onPick, onColor
           ))}
 
           <h4 className="picker-h">Clothing</h4>
-          <p className="faint" style={{ fontSize: 12, margin: '0 0 8px' }}>Blanks from the design lab. Pick a piece, then a colour.</p>
+          <p className="faint" style={{ fontSize: 12, margin: '0 0 8px' }}>Pick a piece, then a colour.</p>
           <div className="bg-grid">
             {GARMENTS.map((g) => (
               <button

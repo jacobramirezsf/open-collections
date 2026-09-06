@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { boardStore, type Board } from '../lib/boards'
 import { canvasStore, rememberCanvas, type CanvasDoc, type CanvasPiece } from '../lib/canvas'
-import { FONTS, TEXT_DEFAULTS, renderTextPiece, type TextProps } from '../lib/textpiece'
+import { FONTS, TEXT_DEFAULTS, TEXT_SHAPES, renderTextPiece, type TextProps } from '../lib/textpiece'
 import { EFFECTS } from '../lib/textures'
-import { PAPER_SHEETS, paperUrl, sheetDef } from '../lib/papers'
+import BackgroundPicker, { backgroundImageUrl, backgroundLabel, isContainedBackground, isSheetValue } from './BackgroundPicker'
 import { proxyImageUrl, uploadEdit } from '../lib/api'
 import { saveImage } from '../lib/save'
 import { onAuthChange } from '../lib/account'
@@ -29,6 +29,9 @@ const ASPECTS: { label: string; value: number }[] = [
   { label: '9:16', value: 9 / 16 },
 ]
 
+// canvases saved before the picker used a `paper:` prefix
+const bgValue = (raw: string) => (raw.startsWith('paper:') ? 'img:' + raw.slice(6) : raw)
+
 function pieceSrcForItem(item: Item): string {
   if (item.originalImageUrl?.startsWith('data:')) return item.originalImageUrl
   if (item.source === 'edits') return item.originalImageUrl || item.imageUrl || item.thumbnailUrl || ''
@@ -50,6 +53,8 @@ export default function CanvasStudio({ id, onClose }: Props) {
   const [marquee, setMarquee] = useState<null | { x0: number; y0: number; x1: number; y1: number }>(null)
   const [exportScale, setExportScale] = useState(2)
   const [textEdit, setTextEdit] = useState<null | { id: string | null; props: TextProps }>(null)
+  const [bgPicker, setBgPicker] = useState(false)
+  const [bgNatural, setBgNatural] = useState<{ w: number; h: number } | null>(null)
   const [picker, setPicker] = useState(false)
   const [menu, setMenu] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
@@ -76,6 +81,20 @@ export default function CanvasStudio({ id, onClose }: Props) {
 
   useEffect(() => onAuthChange((s) => setUser(s.user)), [])
   useEffect(() => rememberCanvas(id), [id])
+  useEffect(() => {
+    const url = backgroundImageUrl(bgValue(doc?.background || ''))
+    if (!url) {
+      setBgNatural(null)
+      return
+    }
+    let dead = false
+    const im = new Image()
+    im.onload = () => !dead && setBgNatural({ w: im.naturalWidth, h: im.naturalHeight })
+    im.src = url
+    return () => {
+      dead = true
+    }
+  }, [doc?.background])
   useEffect(() => canvasStore.subscribe(() => setDoc(canvasStore.get(id) ?? null)), [id])
 
   const say = useCallback((m: string) => {
@@ -189,6 +208,7 @@ export default function CanvasStudio({ id, onClose }: Props) {
   }
 
   const onPiecePointerDown = (e: React.PointerEvent, p: CanvasPiece) => {
+    if (p.locked) return // a locked layer stays put; unlock it from the layer strip
     e.stopPropagation()
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
     const inSel = selSet.has(p.id)
@@ -297,6 +317,7 @@ export default function CanvasStudio({ id, onClose }: Props) {
           if (x1 - x0 < 8 && y1 - y0 < 8) setSelected([]) // a tap on empty canvas clears
           else {
             const hit = doc.pieces.filter((p) => {
+              if (p.locked) return false
               const b = boundsOf(p)
               return b.x0 < x1 && b.x1 > x0 && b.y0 < y1 && b.y1 > y0
             })
@@ -412,7 +433,24 @@ export default function CanvasStudio({ id, onClose }: Props) {
     snapshot()
     canvasStore.update(id, { pieces })
   }
-  const selectAll = () => setSelected((doc?.pieces || []).map((p) => p.id))
+  const selectAll = () => setSelected((doc?.pieces || []).filter((p) => !p.locked).map((p) => p.id))
+  const toggleLock = (pid: string) => {
+    if (!doc) return
+    snapshot()
+    canvasStore.update(id, { pieces: doc.pieces.map((p) => (p.id === pid ? { ...p, locked: !p.locked } : p)) })
+  }
+  // move one layer through the stack; +1 is toward the front
+  const movePiece = (pid: string, dir: 1 | -1) => {
+    if (!doc) return
+    const idx = doc.pieces.findIndex((p) => p.id === pid)
+    const to = idx + dir
+    if (idx < 0 || to < 0 || to >= doc.pieces.length) return
+    snapshot()
+    const pieces = doc.pieces.slice()
+    const [moved] = pieces.splice(idx, 1)
+    pieces.splice(to, 0, moved)
+    canvasStore.update(id, { pieces })
+  }
 
   // ---- desktop: keyboard shortcuts ----
   useEffect(() => {
@@ -529,22 +567,28 @@ export default function CanvasStudio({ id, onClose }: Props) {
     c.width = W
     c.height = H
     const ctx = c.getContext('2d')!
-    if (doc.background.startsWith('paper:')) {
-      const slug = doc.background.slice(6)
+    const bg = bgValue(doc.background)
+    const bgUrl = backgroundImageUrl(bg)
+    if (bgUrl) {
       const img = await new Promise<HTMLImageElement>((ok, bad) => {
         const im = new Image()
         im.onload = () => ok(im)
-        im.onerror = () => bad(new Error('paper failed'))
-        im.src = paperUrl(slug)
+        im.onerror = () => bad(new Error('background failed'))
+        im.src = bgUrl
       })
-      if (sheetDef(slug)?.edge) {
-        // silhouette sheet: contained and centered, surround stays transparent
-        const fit = Math.min(W / img.naturalWidth, H / img.naturalHeight)
-        ctx.drawImage(img, (W - img.naturalWidth * fit) / 2, (H - img.naturalHeight * fit) / 2, img.naturalWidth * fit, img.naturalHeight * fit)
-      } else {
-        const cover = Math.max(W / img.naturalWidth, H / img.naturalHeight)
-        ctx.drawImage(img, (W - img.naturalWidth * cover) / 2, (H - img.naturalHeight * cover) / 2, img.naturalWidth * cover, img.naturalHeight * cover)
-      }
+      const deg = doc.bgRotate || 0
+      const turned = deg % 180 !== 0
+      const nw = img.naturalWidth
+      const nh = img.naturalHeight
+      const ew = turned ? nh : nw
+      const eh = turned ? nw : nh
+      // a cut-out sheet or garment keeps its silhouette (contain); a full-bleed paper covers
+      const k = isContainedBackground(bg) ? Math.min(W / ew, H / eh) : Math.max(W / ew, H / eh)
+      ctx.save()
+      ctx.translate(W / 2, H / 2)
+      ctx.rotate((deg * Math.PI) / 180)
+      ctx.drawImage(img, (-nw * k) / 2, (-nh * k) / 2, nw * k, nh * k)
+      ctx.restore()
     } else if (doc.background !== 'transparent') {
       ctx.fillStyle = doc.background
       ctx.fillRect(0, 0, W, H)
@@ -674,21 +718,31 @@ export default function CanvasStudio({ id, onClose }: Props) {
   }
 
   const CHECKER = 'repeating-conic-gradient(#e3e0d9 0% 25%, #efece6 0% 50%)'
-  const bgSlug = doc.background.startsWith('paper:') ? doc.background.slice(6) : null
-  const bgEdge = bgSlug ? sheetDef(bgSlug)?.edge : false
-  const bgStyle: React.CSSProperties = bgSlug
-    ? bgEdge
-      ? {
-          // edge sheet: keep its silhouette — contained on a transparent board
-          backgroundImage: `url(${paperUrl(bgSlug)}), ${CHECKER}`,
-          backgroundSize: 'contain, 16px 16px',
-          backgroundRepeat: 'no-repeat, repeat',
-          backgroundPosition: 'center, 0 0',
-        }
-      : { backgroundImage: `url(${paperUrl(bgSlug)})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-    : doc.background === 'transparent'
+  const bgVal = bgValue(doc.background)
+  const bgUrl = backgroundImageUrl(bgVal)
+  const bgStyle: React.CSSProperties = bgUrl
+    ? { backgroundImage: CHECKER, backgroundSize: '16px 16px' }
+    : bgVal === 'transparent'
       ? { backgroundImage: CHECKER, backgroundSize: '16px 16px' }
-      : { background: doc.background }
+      : { background: bgVal }
+  // the sheet is a real element rather than a CSS background so it can be turned 90 degrees
+  const bgImgStyle = (): React.CSSProperties | null => {
+    if (!bgUrl || !bgNatural) return null
+    const deg = doc.bgRotate || 0
+    const turned = deg % 180 !== 0
+    const ew = turned ? bgNatural.h : bgNatural.w
+    const eh = turned ? bgNatural.w : bgNatural.h
+    const k = isContainedBackground(bgVal) ? Math.min(boardW / ew, boardH / eh) : Math.max(boardW / ew, boardH / eh)
+    return {
+      position: 'absolute',
+      left: '50%',
+      top: '50%',
+      width: bgNatural.w * k,
+      height: bgNatural.h * k,
+      transform: `translate(-50%, -50%) rotate(${deg}deg)`,
+      pointerEvents: 'none',
+    }
+  }
 
   return (
     <div className="viewer canvas-studio" role="dialog" aria-modal="true">
@@ -712,6 +766,7 @@ export default function CanvasStudio({ id, onClose }: Props) {
       >
         {busy && <div className="busy-pill" style={{ position: 'absolute', zIndex: 5 }}>{busy}</div>}
         <div className="artboard" ref={boardRef} style={{ width: boardW, height: boardH, ...bgStyle }}>
+          {bgUrl && bgImgStyle() && <img className="artboard-bg" src={bgUrl} alt="" draggable={false} style={bgImgStyle()!} />}
           {snap.v && <div className="guide gv" />}
           {snap.h && <div className="guide gh" />}
           {marquee && (
@@ -750,13 +805,24 @@ export default function CanvasStudio({ id, onClose }: Props) {
         {doc.pieces.length > 0 && (
           <div className="layerstrip">
             {[...doc.pieces].reverse().map((p) => (
-              <button
-                key={p.id}
-                className={'layerthumb' + (selSet.has(p.id) ? ' sel' : '')}
-                onClick={(e) => setSelected(e.shiftKey ? (selSet.has(p.id) ? selected.filter((x) => x !== p.id) : [...selected, p.id]) : [p.id])}
-              >
-                <img src={p.src} alt="" draggable={false} />
-              </button>
+              <div key={p.id} className={'layerrow' + (selSet.has(p.id) ? ' sel' : '')}>
+                <button
+                  className={'layerthumb' + (selSet.has(p.id) ? ' sel' : '') + (p.locked ? ' locked' : '')}
+                  onClick={(e) => setSelected(e.shiftKey ? (selSet.has(p.id) ? selected.filter((x) => x !== p.id) : [...selected, p.id]) : [p.id])}
+                  title={p.title || 'Layer'}
+                >
+                  <img src={p.src} alt="" draggable={false} />
+                  <span className="layerlock" onClick={(e) => { e.stopPropagation(); toggleLock(p.id) }} title={p.locked ? 'Unlock this layer' : 'Lock this layer'}>
+                    {p.locked ? '🔒' : '🔓'}
+                  </span>
+                </button>
+                {selSet.has(p.id) && (
+                  <div className="layermove">
+                    <button onClick={() => movePiece(p.id, 1)} disabled={doc.pieces[doc.pieces.length - 1]?.id === p.id} title="Bring forward">▲</button>
+                    <button onClick={() => movePiece(p.id, -1)} disabled={doc.pieces[0]?.id === p.id} title="Send back">▼</button>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}
@@ -771,32 +837,17 @@ export default function CanvasStudio({ id, onClose }: Props) {
         <div className="chips" style={{ margin: 0 }}>
           <button className="btn small primary" onClick={() => setPicker(true)}>+ Add image</button>
           <button className="btn small" onClick={() => setTextEdit({ id: null, props: { ...TEXT_DEFAULTS } })}>+ Add text</button>
-          <select className="input btn-like" value={doc.background.startsWith('paper:') ? doc.background : doc.background === 'transparent' ? 'transparent' : 'color'} onChange={(e) => {
-            const v = e.target.value
-            snapshot()
-            if (v === 'color') canvasStore.update(id, { background: '#f3f1e8' })
-            else canvasStore.update(id, { background: v })
-          }}>
-            <option value="color">Color…</option>
-            <option value="transparent">Transparent</option>
-            <optgroup label="Papers">
-              {PAPER_SHEETS.filter((t) => t.group === 'paper').map((t) => (
-                <option key={t.slug} value={'paper:' + t.slug}>{t.label}</option>
-              ))}
-            </optgroup>
-            <optgroup label="Deckle and torn edges">
-              {PAPER_SHEETS.filter((t) => t.group === 'edge').map((t) => (
-                <option key={t.slug} value={'paper:' + t.slug}>{t.label}</option>
-              ))}
-            </optgroup>
-            <optgroup label="Fabric">
-              {PAPER_SHEETS.filter((t) => t.group === 'fabric').map((t) => (
-                <option key={t.slug} value={'paper:' + t.slug}>{t.label}</option>
-              ))}
-            </optgroup>
-          </select>
-          {!doc.background.startsWith('paper:') && doc.background !== 'transparent' && (
-            <input type="color" value={doc.background} onChange={(e) => canvasStore.update(id, { background: e.target.value })} style={{ width: 34, height: 28, border: '1px solid var(--line-2)', borderRadius: 3, background: '#fff', padding: 2 }} />
+          <button className="btn small" onClick={() => setBgPicker(true)} style={{ gap: 6 }}>
+            <span
+              className="bg-swatch"
+              style={bgUrl ? { backgroundImage: `url(${bgUrl})` } : bgVal === 'transparent' ? { backgroundImage: CHECKER, backgroundSize: '8px 8px' } : { background: bgVal }}
+            />
+            {isSheetValue(bgVal) ? backgroundLabel(bgVal) : bgVal === 'transparent' ? 'Transparent' : 'Colour'}
+          </button>
+          {isSheetValue(bgVal) && (
+            <button className="btn small" onClick={() => { snapshot(); canvasStore.update(id, { bgRotate: ((doc.bgRotate || 0) + 90) % 360 }) }} title="Turn the sheet 90 degrees">
+              Rotate
+            </button>
           )}
           <select className="input btn-like" value={String(doc.aspect)} onChange={(e) => { snapshot(); canvasStore.update(id, { aspect: Number(e.target.value) }) }}>
             {ASPECTS.map((a) => (
@@ -831,6 +882,9 @@ export default function CanvasStudio({ id, onClose }: Props) {
             <button className="btn small" onClick={duplicateSel}>Duplicate</button>
             <button className="btn small" onClick={() => reorderSel(1)}>Forward</button>
             <button className="btn small" onClick={() => reorderSel(-1)}>Back</button>
+            <button className="btn small" onClick={() => selPieces.forEach((p) => toggleLock(p.id))}>
+              {selPieces.every((p) => p.locked) ? 'Unlock' : 'Lock'}
+            </button>
             <button className="btn small danger" onClick={removeSel}>Remove</button>
             {doc.pieces.length > selPieces.length && <button className="btn small" onClick={selectAll}>Select all</button>}
             <button className="btn small" onClick={() => setSelected([])}>Deselect</button>
@@ -844,6 +898,17 @@ export default function CanvasStudio({ id, onClose }: Props) {
         )}
       </div>
 
+      {bgPicker && (
+        <BackgroundPicker
+          value={bgVal}
+          color={isSheetValue(bgVal) || bgVal === 'transparent' ? '#f3f1e8' : bgVal}
+          rotate={doc.bgRotate || 0}
+          onRotate={(deg) => canvasStore.update(id, { bgRotate: deg })}
+          onColor={(hex) => canvasStore.update(id, { background: hex, bgRotate: 0 })}
+          onPick={(v) => { snapshot(); canvasStore.update(id, { background: v === 'none' ? '#f3f1e8' : v, bgRotate: 0 }) }}
+          onClose={() => setBgPicker(false)}
+        />
+      )}
       {textEdit && (
         <TextSheet
           initial={textEdit.props}
@@ -928,6 +993,20 @@ function TextSheet({ initial, isNew, onApply, onClose }: { initial: TextProps; i
             <span className="label">Leading · {p.leading.toFixed(2)}</span>
             <input type="range" min={0.85} max={2} step={0.01} value={p.leading} onChange={(e) => set('leading', Number(e.target.value))} />
           </label>
+          <div>
+            <span className="label">Shape</span>
+            <select className="input" value={p.shape} onChange={(e) => set('shape', e.target.value as TextProps['shape'])}>
+              {TEXT_SHAPES.map((sh) => (
+                <option key={sh.key} value={sh.key}>{sh.label}</option>
+              ))}
+            </select>
+          </div>
+          {(p.shape === 'arch' || p.shape === 'valley') && (
+            <label className="slider">
+              <span className="label">Curve · {Math.round(p.curve * 100)}%</span>
+              <input type="range" min={0.15} max={1} step={0.05} value={p.curve} onChange={(e) => set('curve', Number(e.target.value))} />
+            </label>
+          )}
           <div style={{ gridColumn: '1 / -1' }}>
             <span className="label">Effect</span>
             <select className="input" value={p.effect || 'none'} onChange={(e) => set('effect', e.target.value as TextProps['effect'])}>

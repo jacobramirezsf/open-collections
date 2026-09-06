@@ -15,13 +15,15 @@ export interface CanvasPiece {
   title?: string
   hi?: string // full-resolution source, used only when exporting
   text?: TextProps // set when this piece is lettering, so it stays re-editable
+  locked?: boolean // pinned in place: not draggable or marquee-selectable on the artboard
 }
 
 export interface CanvasDoc {
   id: string
   name: string
   aspect: number // width / height
-  background: string // css color or 'paper:<slug>' or 'transparent'
+  background: string // css colour, 'transparent', 'img:<sheet>' or 'garment:<piece>/<colour>'
+  bgRotate?: number // 0/90/180/270, for sheets
   pieces: CanvasPiece[]
   createdAt: number
   updatedAt: number

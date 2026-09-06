@@ -428,3 +428,15 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-2)
 
 .text-pop { max-width: 440px; }
 .text-pop textarea.input { width: 100%; line-height: 1.2; }
+
+.artboard-bg { user-select: none; -webkit-user-drag: none; }
+
+/* Layer strip: lock and reorder */
+.layerstrip { width: 60px; }
+.layerrow { position: relative; flex: 0 0 auto; }
+.layerthumb { position: relative; }
+.layerthumb.locked img { opacity: 0.55; }
+.layerlock { position: absolute; right: -3px; top: -3px; font-size: 10px; line-height: 1; padding: 2px; border-radius: 3px; background: var(--bg); border: 1px solid var(--line-2); cursor: pointer; }
+.layermove { display: flex; gap: 2px; margin-top: 2px; }
+.layermove button { flex: 1; font-size: 10px; line-height: 1; padding: 3px 0; border: 1px solid var(--line-2); background: var(--bg); border-radius: 3px; cursor: pointer; }
+.layermove button:disabled { opacity: 0.35; }

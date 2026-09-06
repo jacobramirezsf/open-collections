@@ -1,0 +1,43 @@
+import { chromium, devices } from 'playwright'
+const browser = await chromium.launch()
+const page = await browser.newPage({ ...devices['iPhone 13'] })
+page.on('pageerror', (e) => console.log('PAGEERROR:', e.message))
+await page.goto('http://localhost:5180/', { waitUntil: 'domcontentloaded' })
+await page.waitForTimeout(1200)
+await page.evaluate(() => localStorage.setItem('open-collections:intro-seen:v1', '1'))
+await page.reload({ waitUntil: 'domcontentloaded' })
+await page.waitForTimeout(1200)
+await page.click('button:has-text("Canvas")')
+await page.waitForSelector('.canvas-studio')
+// seed a piece so we can see layering
+await page.evaluate(() => {
+  const cv = document.createElement('canvas'); cv.width = 240; cv.height = 180
+  const x = cv.getContext('2d'); x.fillStyle = '#c33'; x.fillRect(0, 0, 240, 180)
+  const docs = JSON.parse(localStorage.getItem('open-collections:canvases:v1'))
+  docs[0].pieces = [{ id: 'a', src: cv.toDataURL(), x: 500, y: 620, scale: 0.5, rotation: 0, w: 240, h: 180 }]
+  localStorage.setItem('open-collections:canvases:v1', JSON.stringify(docs))
+  location.reload()
+})
+await page.waitForTimeout(1500)
+await page.click('.canvas-dock button:has-text("Colour"), .canvas-dock .bg-swatch')
+await page.waitForSelector('.bg-pop', { timeout: 6000 })
+const sections = await page.$$eval('.bg-pop .picker-h', (h) => h.map((x) => x.textContent))
+console.log('1. canvas picker sections:', sections.join(' / '))
+console.log('   has Clothing:', sections.includes('Clothing') ? 'PASS' : 'FAIL', '| no finishes section:', sections.some((s) => s.includes('finish')) ? 'FAIL' : 'PASS')
+await page.screenshot({ path: 'data/shots/canvas-bg-picker.png' })
+// pick a garment colour
+await page.click('.bg-tile:has-text("Crewneck")')
+await page.waitForTimeout(500)
+await page.click('.bg-sub .bg-tile >> nth=1')
+await page.waitForTimeout(1500)
+console.log('2. garment background applied:', (await page.locator('.canvas-dock button').nth(2).textContent()).trim())
+console.log('   bg layer present:', await page.locator('.artboard-bg').count())
+await page.screenshot({ path: 'data/shots/canvas-bg-garment.png' })
+// rotate it
+const b0 = await page.locator('.artboard-bg').evaluate((el) => el.style.transform)
+await page.click('.canvas-dock button:has-text("Rotate")')
+await page.waitForTimeout(900)
+const b1 = await page.locator('.artboard-bg').evaluate((el) => el.style.transform)
+console.log('3. rotate:', b0, '->', b1, b1.includes('90deg') ? 'PASS' : 'FAIL')
+await page.screenshot({ path: 'data/shots/canvas-bg-rotated.png' })
+await browser.close()
