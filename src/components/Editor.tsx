@@ -571,7 +571,13 @@ export default function Editor({ item, onClose }: Props) {
     setBusy('Building SVG…')
     setTimeout(() => {
       try {
-        const svg = screenToSvg(computeScreen(full, params, preview!.width), params)
+        const screen = computeScreen(full, params, preview!.width)
+        // one vector shape per dot: a very fine screen would build a file too large to open
+        if (screen.dots.length > 260_000) {
+          setError(`That screen is too fine for a vector file (${(screen.dots.length / 1000) | 0}k dots). Raise the dot size for SVG, or save it as a PNG instead.`)
+          return
+        }
+        const svg = screenToSvg(screen, params)
         saveBlob(new Blob([svg], { type: 'image/svg+xml' }), `${baseName}.svg`)
       } catch (e) {
         setError('SVG export failed (' + (e as Error).message + ')')
@@ -887,8 +893,8 @@ export default function Editor({ item, onClose }: Props) {
           {htActive && (
             <div className="controls-wrap">
               <div className="ctl">
-                <span className="label">Dot size · {params.cell}px</span>
-                <input type="range" min={4} max={28} step={1} value={params.cell} onChange={(e) => set('cell', Number(e.target.value))} />
+                <span className="label">Dot size · {params.cell % 1 ? params.cell.toFixed(1) : params.cell}px</span>
+                <input type="range" min={1.5} max={28} step={0.5} value={params.cell} onChange={(e) => set('cell', Number(e.target.value))} />
               </div>
               <div className="ctl">
                 <span className="label">Angle · {params.angle}°</span>

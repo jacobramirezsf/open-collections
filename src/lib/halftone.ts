@@ -33,7 +33,10 @@ export function computeScreen(src: HTMLCanvasElement, params: HalftoneParams, pr
   const { angle, shape, gain, invert } = params
   const w = src.width
   const h = src.height
-  const cell = params.cell * (w / previewWidth)
+  let cell = params.cell * (w / previewWidth)
+  // a very fine screen is fine to render, but keep the grid from exploding on huge sources
+  const MAX_DOTS = 1_200_000
+  if ((w * h) / (cell * cell) > MAX_DOTS) cell = Math.sqrt((w * h) / MAX_DOTS)
   const dots: Dot[] = []
   const data = src.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, w, h).data
   const rad = (angle * Math.PI) / 180
@@ -93,31 +96,69 @@ export function renderScreen(screen: Screen, params: HalftoneParams, scale = 1):
   ctx.strokeStyle = params.ink
   const rad = (screen.angle * Math.PI) / 180
   const half = (screen.cell * scale) / 2
+  // Dots are drawn in a handful of opacity buckets, one path each, rather than a path per dot:
+  // at fine screen rulings that is the difference between a snappy render and a stalled tab.
+  const buckets = new Map<number, Dot[]>()
   for (const d of screen.dots) {
-    const x = d.x * scale
-    const y = d.y * scale
-    const r = d.r * scale
-    ctx.globalAlpha = d.a
+    const q = Math.max(1, Math.round(d.a * 12))
+    let list = buckets.get(q)
+    if (!list) buckets.set(q, (list = []))
+    list.push(d)
+  }
+  const cos = Math.cos(rad)
+  const sin = Math.sin(rad)
+  for (const [q, list] of buckets) {
+    ctx.globalAlpha = q / 12
     if (params.shape === 'dot') {
       ctx.beginPath()
-      ctx.arc(x, y, r, 0, Math.PI * 2)
+      for (const d of list) {
+        const x = d.x * scale
+        const y = d.y * scale
+        const r = d.r * scale
+        if (r < 0.65) {
+          // sub-pixel dots: a rect is quicker and looks the same
+          ctx.rect(x - r, y - r, r * 2, r * 2)
+        } else {
+          ctx.moveTo(x + r, y)
+          ctx.arc(x, y, r, 0, Math.PI * 2)
+        }
+      }
       ctx.fill()
     } else if (params.shape === 'square') {
-      ctx.save()
-      ctx.translate(x, y)
-      ctx.rotate(rad)
-      ctx.fillRect(-r, -r, r * 2, r * 2)
-      ctx.restore()
-    } else {
-      ctx.save()
-      ctx.translate(x, y)
-      ctx.rotate(rad)
-      ctx.lineWidth = Math.min(screen.cell * scale, r * 1.6)
       ctx.beginPath()
-      ctx.moveTo(-half, 0)
-      ctx.lineTo(half, 0)
-      ctx.stroke()
-      ctx.restore()
+      for (const d of list) {
+        const x = d.x * scale
+        const y = d.y * scale
+        const r = d.r * scale
+        const dx = cos * r
+        const dy = sin * r
+        ctx.moveTo(x - dx + dy, y - dy - dx)
+        ctx.lineTo(x + dx + dy, y + dy - dx)
+        ctx.lineTo(x + dx - dy, y + dy + dx)
+        ctx.lineTo(x - dx - dy, y - dy + dx)
+        ctx.closePath()
+      }
+      ctx.fill()
+    } else {
+      // lines share a stroke width per bucket so they can be batched too
+      const byWidth = new Map<number, Dot[]>()
+      for (const d of list) {
+        const lw = Math.max(0.4, Math.round(Math.min(screen.cell * scale, d.r * scale * 1.6) * 4) / 4)
+        let l = byWidth.get(lw)
+        if (!l) byWidth.set(lw, (l = []))
+        l.push(d)
+      }
+      for (const [lw, group] of byWidth) {
+        ctx.lineWidth = lw
+        ctx.beginPath()
+        for (const d of group) {
+          const x = d.x * scale
+          const y = d.y * scale
+          ctx.moveTo(x - cos * half, y - sin * half)
+          ctx.lineTo(x + cos * half, y + sin * half)
+        }
+        ctx.stroke()
+      }
     }
   }
   ctx.globalAlpha = 1
