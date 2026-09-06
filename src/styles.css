@@ -389,3 +389,21 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-2)
 .save-prompt-title { margin: 0 0 2px; font-size: 15px; font-weight: 600; }
 .save-prompt .btn { width: 100%; justify-content: center; }
 @media (min-width: 801px) { .save-prompt { bottom: 24px; border-radius: 8px; border-bottom: 1px solid var(--line); } }
+
+/* Background picker */
+.bg-pop { max-width: 560px; }
+.bg-scroll { max-height: min(62vh, 520px); overflow-y: auto; overscroll-behavior: contain; }
+.bg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; margin-bottom: 6px; }
+.bg-tile { display: flex; flex-direction: column; gap: 4px; align-items: stretch; padding: 0; border: none; background: none; cursor: pointer; text-align: left; }
+.bg-thumb {
+  position: relative; display: block; height: 62px; border-radius: 4px; border: 1px solid var(--line-2);
+  overflow: hidden; background: var(--card, #efece6); background-size: cover; background-position: center;
+}
+.bg-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bg-thumb-checker { background-image: repeating-conic-gradient(#d9d6cf 0% 25%, #efece6 0% 50%); background-size: 12px 12px; }
+.bg-thumb-color input[type="color"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.bg-tile.sel .bg-thumb { border-color: var(--fg); box-shadow: 0 0 0 2px var(--fg); }
+.bg-tile.open .bg-thumb { border-color: var(--fg); border-style: dashed; }
+.bg-name { font-size: 11px; color: var(--fg-2); line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bg-sub { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 4px; }
+.bg-swatch { width: 20px; height: 20px; border-radius: 3px; border: 1px solid var(--line-2); background-size: cover; background-position: center; flex: 0 0 auto; }

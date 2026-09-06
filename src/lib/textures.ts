@@ -686,7 +686,9 @@ export function computeCmykScreens(src: HTMLCanvasElement, cellPx: number, gain:
 
 function renderCmyk(work: HTMLCanvasElement, p: TextureParams, cellPx: number): HTMLCanvasElement {
   const screens = computeCmykScreens(work, cellPx, p.amount)
-  const { canvas, ctx } = makeOut(work.width, work.height, p.paper === 'transparent' ? '#ffffff' : p.paper)
+  // Multiply over a transparent backdrop yields the source, so the plates still overprint each
+  // other correctly without forcing an opaque white sheet under them.
+  const { canvas, ctx } = makeOut(work.width, work.height, p.paper)
   ctx.globalCompositeOperation = 'multiply'
   for (const { ch, color } of CMYK_CHANNELS) {
     const plate = renderHalftoneScreen(screens[ch], { on: true, cell: 0, angle: screens[ch].angle, shape: 'dot', gain: 1, ink: color, paper: 'transparent', invert: false })

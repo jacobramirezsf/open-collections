@@ -16,6 +16,7 @@ import {
 } from '../lib/textures'
 import { PAPER_SHEETS, paperUrl, sheetDef } from '../lib/papers'
 import MaskTool from './MaskTool'
+import BackgroundPicker, { backgroundImageUrl, backgroundLabel, isContainedBackground, isGarment, isSheetValue } from './BackgroundPicker'
 import { useBodyLock } from './Panels'
 
 interface Props {
@@ -64,6 +65,8 @@ export default function Editor({ item, onClose }: Props) {
   const [originalFull, setOriginalFull] = useState<HTMLCanvasElement | null>(null)
   const [cutoutApplied, setCutoutApplied] = useState(false)
   const [refining, setRefining] = useState(false)
+  const [bgPicker, setBgPicker] = useState(false)
+  const [sheetRotate, setSheetRotate] = useState(0)
   const [busy, setBusy] = useState<string | null>('Loading image…')
   const [error, setError] = useState<string | null>(null)
   const [exportScale, setExportScale] = useState(1)
@@ -81,18 +84,18 @@ export default function Editor({ item, onClose }: Props) {
 
   useEffect(() => onAuthChange((s) => setUser(s.user)), [])
   useEffect(() => {
-    if (!paperTex.startsWith('img:')) {
+    if (!isSheetValue(paperTex)) {
       setSheet(null)
       return
     }
-    const slug = paperTex.slice(4)
+    const slug = paperTex
     const cached = sheetCache.get(slug)
     if (cached) {
       setSheet(cached)
       return
     }
     let dead = false
-    loadImg(paperUrl(slug)).then((img) => {
+    loadImg(backgroundImageUrl(slug)!).then((img) => {
       sheetCache.set(slug, img)
       if (!dead) setSheet(img)
     }).catch(() => {})
@@ -151,31 +154,54 @@ export default function Editor({ item, onClose }: Props) {
         cur = c
       }
       const pw = preview?.width || base.width
-      const useSheet = paperTex.startsWith('img:') && sheet
+      const useSheet = isSheetValue(paperTex) && sheet
       const htP = useSheet ? { ...params, paper: 'transparent' } : params
       const texP = useSheet ? { ...tex, paper: 'transparent' } : tex
       for (const k of stack) {
         cur = k === 'halftone' ? renderScreen(computeScreen(cur, htP, pw), htP) : applyTexture(k, cur, texP, pw, 1)
       }
       if (useSheet) {
-        const sw = sheet.naturalWidth
-        const sh = sheet.naturalHeight
-        if (sheetDef(paperTex.slice(4))?.edge) {
-          // deckle/torn/swatch cutout: the sheet keeps its silhouette — the canvas takes the
-          // sheet's aspect, artwork is printed inside its edge, and the surround stays transparent
+        const turned = sheetRotate % 180 !== 0
+        const sw = turned ? sheet.naturalHeight : sheet.naturalWidth
+        const sh = turned ? sheet.naturalWidth : sheet.naturalHeight
+        // draw the sheet at `size`, rotated about its own centre
+        const drawSheet = (ctx: CanvasRenderingContext2D, cx: number, cy: number, w: number, h: number) => {
+          ctx.save()
+          ctx.translate(cx, cy)
+          ctx.rotate((sheetRotate * Math.PI) / 180)
+          if (turned) ctx.drawImage(sheet, -h / 2, -w / 2, h, w)
+          else ctx.drawImage(sheet, -w / 2, -h / 2, w, h)
+          ctx.restore()
+        }
+        if (isContainedBackground(paperTex)) {
+          // cut-out sheet or garment: it keeps its silhouette, the artwork prints inside it, and
+          // the surround stays transparent
           const grow = Math.max(cur.width / sw, cur.height / sh)
           const out = document.createElement('canvas')
           out.width = Math.round(sw * grow)
           out.height = Math.round(sh * grow)
           const ctx = out.getContext('2d')!
-          ctx.drawImage(sheet, 0, 0, out.width, out.height)
-          const inset = 0.07 * Math.min(out.width, out.height)
-          const fit = Math.min((out.width - inset * 2) / cur.width, (out.height - inset * 2) / cur.height)
+          drawSheet(ctx, out.width / 2, out.height / 2, out.width, out.height)
+          // a garment gets a chest print rather than a full-bleed inset
+          let fit: number
+          let cx: number
+          let cy: number
+          if (isGarment(paperTex)) {
+            const area = Math.min(out.width, out.height) * (turned ? 0.34 : 0.42)
+            fit = Math.min(area / cur.width, area / cur.height)
+            cx = out.width / 2
+            cy = turned ? out.height / 2 : out.height * 0.42
+          } else {
+            const inset = 0.07 * Math.min(out.width, out.height)
+            fit = Math.min((out.width - inset * 2) / cur.width, (out.height - inset * 2) / cur.height)
+            cx = out.width / 2
+            cy = out.height / 2
+          }
           ctx.globalCompositeOperation = sheetMode === 'ink' ? 'multiply' : 'source-over'
-          ctx.drawImage(cur, (out.width - cur.width * fit) / 2, (out.height - cur.height * fit) / 2, cur.width * fit, cur.height * fit)
-          // trim everything back to the sheet's silhouette so the rough edge survives
+          ctx.drawImage(cur, cx - (cur.width * fit) / 2, cy - (cur.height * fit) / 2, cur.width * fit, cur.height * fit)
+          // trim back to the sheet's silhouette so the rough edge survives
           ctx.globalCompositeOperation = 'destination-in'
-          ctx.drawImage(sheet, 0, 0, out.width, out.height)
+          drawSheet(ctx, out.width / 2, out.height / 2, out.width, out.height)
           ctx.globalCompositeOperation = 'source-over'
           cur = out
         } else {
@@ -185,7 +211,7 @@ export default function Editor({ item, onClose }: Props) {
           out.height = cur.height
           const ctx = out.getContext('2d')!
           const cover = Math.max(out.width / sw, out.height / sh)
-          ctx.drawImage(sheet, (out.width - sw * cover) / 2, (out.height - sh * cover) / 2, sw * cover, sh * cover)
+          drawSheet(ctx, out.width / 2, out.height / 2, sw * cover, sh * cover)
           ctx.globalCompositeOperation = sheetMode === 'ink' ? 'multiply' : 'source-over'
           ctx.drawImage(cur, 0, 0)
           ctx.globalCompositeOperation = 'source-over'
@@ -196,7 +222,7 @@ export default function Editor({ item, onClose }: Props) {
       }
       return cur
     },
-    [stack, params, tex, paperTex, sheet, sheetMode, preview],
+    [stack, params, tex, paperTex, sheet, sheetMode, sheetRotate, preview],
   )
 
   // debounced preview render
@@ -355,8 +381,8 @@ export default function Editor({ item, onClose }: Props) {
   // Transparency decides the format: PNG only when we need the alpha, JPEG otherwise. A
   // photographic PNG runs to tens of megabytes, which makes phone saves slow and unreliable.
   const isTransparent =
-    (paperTex.startsWith('img:')
-      ? !!sheetDef(paperTex.slice(4))?.edge
+    (isSheetValue(paperTex)
+      ? isContainedBackground(paperTex)
       : (stack.includes('halftone') && stack.length === 1 ? params.paper : tex.paper) === 'transparent') ||
     (!stack.length && cutoutApplied)
 
@@ -694,63 +720,27 @@ export default function Editor({ item, onClose }: Props) {
                   <div className="ctl row">
                     <span className="label">Background</span>
                     <div className="row" style={{ gap: 6 }}>
-                      <select
-                        className="input"
-                        style={{ width: 'auto', flex: '1 1 auto', minWidth: 0 }}
-                        value={paperTex.startsWith('img:') ? paperTex : activePaper === 'transparent' ? 'transparent' : paperTex}
-                        onChange={(e) => {
-                          const v = e.target.value
-                          if (v === 'transparent') {
-                            setPaperTex('none')
-                            setTex((t) => ({ ...t, paper: 'transparent' }))
-                            setParams((p) => ({ ...p, paper: 'transparent' }))
-                            return
+                      <button className="btn" style={{ flex: '1 1 auto', justifyContent: 'flex-start', gap: 8 }} onClick={() => setBgPicker(true)}>
+                        <span
+                          className="bg-swatch"
+                          style={
+                            backgroundImageUrl(paperTex)
+                              ? { backgroundImage: `url(${backgroundImageUrl(paperTex)})` }
+                              : activePaper === 'transparent'
+                                ? { backgroundImage: 'repeating-conic-gradient(#d9d6cf 0% 25%, #efece6 0% 50%)', backgroundSize: '8px 8px' }
+                                : { background: activePaper }
                           }
-                          setPaperTex(v)
-                          if (!v.startsWith('img:') && activePaper === 'transparent') {
-                            // coming back from transparent: restore a real paper color to tint
-                            setTex((t) => ({ ...t, paper: TEXTURE_DEFAULTS.paper }))
-                            setParams((p) => ({ ...p, paper: HT_DEFAULTS.paper }))
-                          }
-                        }}
-                      >
-                        <option value="none">Color…</option>
-                        <option value="transparent">Transparent</option>
-                        <optgroup label="Color with a finish">
-                          {PAPER_TEXTURES.filter((t) => t.key !== 'none').map((t) => (
-                            <option key={t.key} value={t.key}>{t.label}</option>
-                          ))}
-                        </optgroup>
-                        <optgroup label="Papers">
-                          {PAPER_SHEETS.filter((t) => t.group === 'paper').map((t) => (
-                            <option key={t.slug} value={'img:' + t.slug}>{t.label}</option>
-                          ))}
-                        </optgroup>
-                        <optgroup label="Deckle and torn edges">
-                          {PAPER_SHEETS.filter((t) => t.group === 'edge').map((t) => (
-                            <option key={t.slug} value={'img:' + t.slug}>{t.label}</option>
-                          ))}
-                        </optgroup>
-                        <optgroup label="Fabric">
-                          {PAPER_SHEETS.filter((t) => t.group === 'fabric').map((t) => (
-                            <option key={t.slug} value={'img:' + t.slug}>{t.label}</option>
-                          ))}
-                        </optgroup>
-                      </select>
-                      {!paperTex.startsWith('img:') && activePaper !== 'transparent' && (
-                        <input
-                          type="color"
-                          aria-label="Background color"
-                          value={activePaper}
-                          onChange={(e) => {
-                            setTex((t) => ({ ...t, paper: e.target.value }))
-                            setParams((p) => ({ ...p, paper: e.target.value }))
-                          }}
                         />
+                        {backgroundLabel(paperTex === 'none' && activePaper === 'transparent' ? 'transparent' : paperTex)}
+                      </button>
+                      {isSheetValue(paperTex) && (
+                        <button className="btn" onClick={() => setSheetRotate((r) => (r + 90) % 360)} title="Turn the sheet 90 degrees">
+                          Rotate
+                        </button>
                       )}
                     </div>
                   </div>
-                  {paperTex.startsWith('img:') && (
+                  {isSheetValue(paperTex) && (
                     <div>
                       <span className="label">Sheet mode</span>
                       <div className="seg">
@@ -863,7 +853,35 @@ export default function Editor({ item, onClose }: Props) {
         </div>
       </div>
       {toast && <div className="toast">{toast}</div>}
-          {refining && originalFull && full && (
+          {bgPicker && (
+        <BackgroundPicker
+          value={paperTex === 'none' && activePaper === 'transparent' ? 'transparent' : paperTex}
+          color={activePaper === 'transparent' ? TEXTURE_DEFAULTS.paper : activePaper}
+          rotate={sheetRotate}
+          onRotate={setSheetRotate}
+          onColor={(hex) => {
+            setTex((t) => ({ ...t, paper: hex }))
+            setParams((p) => ({ ...p, paper: hex }))
+            if (isSheetValue(paperTex)) setPaperTex('none')
+          }}
+          onPick={(v) => {
+            if (v === 'transparent') {
+              setPaperTex('none')
+              setTex((t) => ({ ...t, paper: 'transparent' }))
+              setParams((p) => ({ ...p, paper: 'transparent' }))
+              return
+            }
+            setPaperTex(v)
+            setSheetRotate(0)
+            if (!isSheetValue(v) && activePaper === 'transparent') {
+              setTex((t) => ({ ...t, paper: TEXTURE_DEFAULTS.paper }))
+              setParams((p) => ({ ...p, paper: HT_DEFAULTS.paper }))
+            }
+          }}
+          onClose={() => setBgPicker(false)}
+        />
+      )}
+      {refining && originalFull && full && (
         <MaskTool
           original={originalFull}
           current={full}
