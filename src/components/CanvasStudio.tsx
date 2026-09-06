@@ -5,7 +5,7 @@ import { boardStore, type Board } from '../lib/boards'
 import { canvasStore, rememberCanvas, type CanvasDoc, type CanvasPiece } from '../lib/canvas'
 import { PAPER_SHEETS, paperUrl, sheetDef } from '../lib/papers'
 import { proxyImageUrl, uploadEdit } from '../lib/api'
-import { saveBlob } from '../lib/zip'
+import { saveImage } from '../lib/save'
 import { onAuthChange } from '../lib/account'
 import { useBodyLock } from './Panels'
 import type { Item } from '../../shared/types'
@@ -539,12 +539,7 @@ export default function CanvasStudio({ id, onClose }: Props) {
         const c = await renderCanvas()
         const blob: Blob | null = await new Promise((r) => c.toBlob(r, 'image/png'))
         if (!blob) throw new Error('render failed')
-        const file = new File([blob], `${(doc?.name || 'canvas').replace(/[^a-zA-Z0-9._-]+/g, '-')}.png`, { type: 'image/png' })
-        if (isTouch() && navigator.canShare?.({ files: [file] })) {
-          await navigator.share({ files: [file], title: doc?.name }).catch(() => saveBlob(blob, file.name))
-        } else {
-          saveBlob(blob, file.name)
-        }
+        await saveImage(blob, `${(doc?.name || 'canvas').replace(/[^a-zA-Z0-9._-]+/g, '-')}.png`)
       } catch (e) {
         say('Export failed: ' + (e as Error).message)
       } finally {

@@ -110,7 +110,10 @@ async function downloadItemInner(item: Item, fileIdx: number | 'image', signal: 
     if (!res.ok) throw new Error(`This image's host is blocking downloads. Open the original record to save it. (${last.message})`)
   }
   if (!res.ok) throw new Error(`Download failed (${res.status})`)
-  saveBlob(await res.blob(), name)
+  const blob = await res.blob()
+  // a single image should be able to go straight to Photos on a phone
+  const { saveImage } = await import('./save')
+  await saveImage(blob, name)
 }
 
 export function triggerDownload(url: string) {

@@ -61,7 +61,8 @@ export async function downloadFiles(items: Item[], size: BatchSize, onProgress: 
         let n = 1
         while (used.has(final)) final = name.replace(/(\.[a-z0-9]+)$/i, `-${++n}$1`)
         used.add(final)
-        saveBlob(blob, final)
+        if (items.length === 1) await (await import('./save')).saveImage(blob, final)
+        else saveBlob(blob, final)
       } catch (e) {
         if ((e as Error).name === 'AbortError') return
         progress.failed.push(item.title)

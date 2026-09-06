@@ -12,6 +12,7 @@ import ContactSheet from './components/ContactSheet'
 import CanvasStudio from './components/CanvasStudio'
 import { openNewCanvas } from './lib/canvas'
 import Intro, { introSeen, markIntroSeen } from './components/Intro'
+import SavePrompt from './components/SavePrompt'
 import { AccountPanel, BoardsPanel, Filters, PatentFilters, SaveToBoard, StatusPanel } from './components/Panels'
 
 const HINTS: Record<Tool, string[]> = {
@@ -506,6 +507,7 @@ export default function App() {
           onFavorite={toggleFavorite}
         />
       )}
+      <SavePrompt />
       {intro && <Intro total={status?.total} onClose={() => { markIntroSeen(); setIntro(false) }} />}
       {panel === 'account' && (
         <AccountPanel

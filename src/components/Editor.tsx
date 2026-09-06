@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Item } from '../../shared/types'
 import { proxyImageUrl, uploadEdit} from '../lib/api'
 import { saveBlob } from '../lib/zip'
+import { saveImage } from '../lib/save'
 import { boardStore, EDITS_ID } from '../lib/boards'
 import { onAuthChange } from '../lib/account'
 import { computeScreen, renderScreen, screenToSvg, type HalftoneParams } from '../lib/halftone'
@@ -351,13 +352,22 @@ export default function Editor({ item, onClose }: Props) {
     return opts
   }, [full])
 
+  // Transparency decides the format: PNG only when we need the alpha, JPEG otherwise. A
+  // photographic PNG runs to tens of megabytes, which makes phone saves slow and unreliable.
+  const isTransparent =
+    (paperTex.startsWith('img:')
+      ? !!sheetDef(paperTex.slice(4))?.edge
+      : (stack.includes('halftone') && stack.length === 1 ? params.paper : tex.paper) === 'transparent') ||
+    (!stack.length && cutoutApplied)
+
   const renderExport = useCallback((): Promise<Blob | null> => {
     if (!full) return Promise.resolve(null)
     return new Promise((resolve) => {
       const target = buildOutput(full, exportScale)
-      target.toBlob((b) => resolve(b), 'image/png')
+      if (isTransparent) target.toBlob((b) => resolve(b), 'image/png')
+      else target.toBlob((b) => resolve(b), 'image/jpeg', 0.94)
     })
-  }, [full, exportScale, buildOutput])
+  }, [full, exportScale, buildOutput, isTransparent])
 
   const exportPng = useCallback(() => {
     setBusy('Rendering PNG…')
@@ -365,14 +375,7 @@ export default function Editor({ item, onClose }: Props) {
       try {
         const blob = await renderExport()
         if (!blob) throw new Error('render failed')
-        const file = new File([blob], `${baseName}.png`, { type: 'image/png' })
-        // Touch browsers drop the tap's user-activation during the long render, which silently kills
-        // anchor downloads — the share sheet (Save Image / Save to Files) still works there.
-        if (matchMedia('(pointer: coarse)').matches && navigator.canShare?.({ files: [file] })) {
-          await navigator.share({ files: [file], title: item.title }).catch(() => saveBlob(blob, file.name))
-        } else {
-          saveBlob(blob, file.name)
-        }
+        await saveImage(blob, `${baseName}.${blob.type === 'image/png' ? 'png' : 'jpg'}`)
       } catch (e) {
         setError('Export failed (' + (e as Error).message + '). Try a smaller size.')
       } finally {
@@ -409,7 +412,7 @@ export default function Editor({ item, onClose }: Props) {
         if (user) {
           // the request body must stay under the platform's 4.5 MB cap — encode a bounded rendition
           // (full-resolution output is always available via Download)
-          const transparent = (paperTex.startsWith('img:') ? !!sheetDef(paperTex.slice(4))?.edge : (stack.includes('halftone') && stack.length === 1 ? params.paper : tex.paper) === 'transparent') || (!stack.length && cutoutApplied)
+          const transparent = isTransparent
           const mime = transparent ? 'image/png' : 'image/jpeg'
           // render the effect stack ONCE, then only downscale the finished pixels to fit the
           // upload cap — re-running heavy effects per rendition froze phones
