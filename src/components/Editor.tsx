@@ -7,7 +7,7 @@ import type { Item } from '../../shared/types'
 import { proxyImageUrl, uploadEdit} from '../lib/api'
 import { saveBlob } from '../lib/zip'
 import { saveImage } from '../lib/save'
-import { boardStore, EDITS_ID } from '../lib/boards'
+import { boardStore, CUTOUTS_ID, EDITS_ID } from '../lib/boards'
 import { onAuthChange } from '../lib/account'
 import { computeScreen, renderScreen, screenToSvg, type HalftoneParams } from '../lib/halftone'
 import {
@@ -26,6 +26,19 @@ interface Props {
 }
 
 const HT_DEFAULTS: HalftoneParams = { on: true, cell: 8, angle: 22, shape: 'dot', gain: 1.15, ink: '#141414', paper: '#f3f1ec', invert: false }
+// does this image carry real transparency (i.e. is it already a cutout)?
+function hasAlpha(c: HTMLCanvasElement): boolean {
+  const s = document.createElement('canvas')
+  s.width = 64
+  s.height = 64
+  const ctx = s.getContext('2d', { willReadFrequently: true })!
+  ctx.drawImage(c, 0, 0, 64, 64)
+  const d = ctx.getImageData(0, 0, 64, 64).data
+  let clear = 0
+  for (let i = 3; i < d.length; i += 4) if (d[i] < 8) clear++
+  return clear / 4096 > 0.04
+}
+
 const PREVIEW_MAX = 1800
 const SOURCE_MAX = 6000
 const EXPORT_MAX_PIXELS = 64e6
@@ -126,6 +139,13 @@ export default function Editor({ item, onClose }: Props) {
           if (dead) return
           const c = toCanvas(img, SOURCE_MAX)
           setOriginalFull(c)
+          // an image that arrives with real transparency is already a cutout: treat it as one so
+          // effects, erase and export all keep the alpha instead of pasting it onto white
+          if (hasAlpha(c)) {
+            setCutoutApplied(true)
+            setParams((p) => ({ ...p, paper: 'transparent' }))
+            setTex((t) => ({ ...t, paper: 'transparent' }))
+          }
           adopt(c)
           setBusy(null)
           return
@@ -299,6 +319,54 @@ export default function Editor({ item, onClose }: Props) {
   }, [originalFull, adopt])
 
   // Precise cutout (server-side service, uses studio credits) — for images the free route struggles with.
+  // A precise cutout costs a credit, so it is filed on the Cutouts board straight away: reopening
+  // it from there gives you the transparent version again without paying for it twice.
+  const bankCutout = useCallback(
+    async (cut: HTMLCanvasElement) => {
+      try {
+        const c = toCanvas(cut, 2000)
+        let blob: Blob | null = await new Promise((r) => c.toBlob(r, 'image/png'))
+        if (!blob) return
+        let url: string
+        if (user) {
+          let shrunk = c
+          while (blob && blob.size > 4_200_000 && shrunk.width > 700) {
+            shrunk = toCanvas(shrunk, Math.round(shrunk.width * 0.8))
+            blob = await new Promise((r) => shrunk.toBlob(r, 'image/png'))
+          }
+          if (!blob) return
+          url = await uploadEdit(blob, 'image/png')
+        } else {
+          url = toCanvas(cut, 1200).toDataURL('image/png')
+        }
+        const cutItem: Item = {
+          ...item,
+          id: `cutouts:${Date.now()}`,
+          source: 'edits',
+          sourceName: 'My cutouts',
+          title: `${item.title} · cutout`,
+          creator: `Cut out from ${item.sourceName}`,
+          dateDisplay: new Date().toLocaleDateString(),
+          objectType: 'Cutout',
+          medium: 'precise cutout',
+          rightsLabel: `Derived from: ${item.title} (${item.sourceName})`,
+          thumbnailUrl: url,
+          imageUrl: url,
+          originalImageUrl: url,
+          width: null,
+          height: null,
+          files: [],
+        }
+        const board = boardStore.create('Cutouts', CUTOUTS_ID)
+        boardStore.addItems(board.id, [cutItem])
+        say('Cutout saved to your Cutouts board, ready to reopen any time.')
+      } catch {
+        /* the cutout itself still worked; filing it is best effort */
+      }
+    },
+    [item, user, say],
+  )
+
   const removeBgPrecise = useCallback(async () => {
     if (!originalFull) return
     setBusy('Removing background (precise)…')
@@ -316,12 +384,16 @@ export default function Editor({ item, onClose }: Props) {
       }
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
+      let cut: HTMLCanvasElement
       try {
-        adopt(toCanvas(await loadImg(url), SOURCE_MAX))
+        cut = toCanvas(await loadImg(url), SOURCE_MAX)
+        adopt(cut)
       } finally {
         URL.revokeObjectURL(url)
       }
       setCutoutApplied(true)
+      // banked so this credit never has to be spent on the same image twice
+      void bankCutout(cut)
       setParams((p) => ({ ...p, paper: 'transparent' }))
       setTex((t) => ({ ...t, paper: 'transparent' }))
     } catch (e) {

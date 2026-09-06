@@ -8,3 +8,7 @@
   ➜  Local:   http://localhost:5180/
   ➜  Network: use --host to expose
 2:01:09 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx
+2:03:51 PM [vite] (client) hmr update /src/App.tsx, /src/components/Panels.tsx, /src/components/CanvasStudio.tsx, /src/components/Editor.tsx
+2:04:12 PM [vite] (client) hmr update /src/components/Editor.tsx
+2:04:39 PM [vite] (client) hmr update /src/components/Editor.tsx
+2:05:00 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx

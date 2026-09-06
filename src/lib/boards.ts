@@ -24,6 +24,8 @@ export interface BoardStore {
 
 export const FAVORITES_ID = 'favorites'
 export const EDITS_ID = 'edits'
+// Precise cutouts cost credits, so they get their own board and are never lost.
+export const CUTOUTS_ID = 'cutouts'
 
 function withFavorites(boards: Board[]): Board[] {
   let fav = boards.find((b) => b.id === FAVORITES_ID)
@@ -33,6 +35,8 @@ function withFavorites(boards: Board[]): Board[] {
   }
   return [fav, ...boards.filter((b) => b.id !== FAVORITES_ID)]
 }
+
+export const boardName = (id: string) => (id === CUTOUTS_ID ? 'Cutouts' : id === EDITS_ID ? 'Edits' : 'Favorites')
 
 // Union-merge two board lists (local + cloud): boards by id, items by item id.
 export function mergeBoards(a: Board[], b: Board[]): Board[] {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { boardStore, type Board } from '../lib/boards'
 import { canvasStore, rememberCanvas, type CanvasDoc, type CanvasPiece } from '../lib/canvas'
 import { FONTS, TEXT_DEFAULTS, TEXT_SHAPES, renderTextPiece, type TextProps } from '../lib/textpiece'
+import MaskTool from './MaskTool'
 import { EFFECTS } from '../lib/textures'
 import BackgroundPicker, { backgroundImageUrl, backgroundLabel, isContainedBackground, isSheetValue } from './BackgroundPicker'
 import { proxyImageUrl, uploadEdit } from '../lib/api'
@@ -81,6 +82,7 @@ export default function CanvasStudio({ id, onClose }: Props) {
   const [exportScale, setExportScale] = useState(2)
   const [textEdit, setTextEdit] = useState<null | { id: string | null; props: TextProps }>(null)
   const [bgPicker, setBgPicker] = useState(false)
+  const [erasing, setErasing] = useState<null | { id: string; canvas: HTMLCanvasElement }>(null)
   const [bgNatural, setBgNatural] = useState<{ w: number; h: number } | null>(null)
   const [view, setView] = useState({ z: 1, x: 0, y: 0 }) // artboard zoom and pan
   const pan = useRef<null | { x: number; y: number; vx: number; vy: number }>(null)
@@ -970,6 +972,31 @@ export default function CanvasStudio({ id, onClose }: Props) {
             <span className="faint" style={{ fontSize: 11, alignSelf: 'center', flex: '0 0 auto' }}>
               {selPieces.length === 1 ? 'Selected:' : `${selPieces.length} selected:`}
             </span>
+            {one && !one.locked && (
+              <button
+                className="btn small"
+                onClick={() => {
+                  setBusy('Opening…')
+                  const im = new Image()
+                  if (!one.src.startsWith('data:')) im.crossOrigin = 'anonymous'
+                  im.onload = () => {
+                    const c = document.createElement('canvas')
+                    c.width = im.naturalWidth
+                    c.height = im.naturalHeight
+                    c.getContext('2d')!.drawImage(im, 0, 0)
+                    setErasing({ id: one.id, canvas: c })
+                    setBusy(null)
+                  }
+                  im.onerror = () => {
+                    say('Could not open that piece for erasing')
+                    setBusy(null)
+                  }
+                  im.src = one.src
+                }}
+              >
+                Erase
+              </button>
+            )}
             {one?.text && (
               <button className="btn small" onClick={() => setTextEdit({ id: one.id, props: one.text! })}>Edit text</button>
             )}
@@ -994,6 +1021,25 @@ export default function CanvasStudio({ id, onClose }: Props) {
         )}
       </div>
 
+      {erasing && (
+        <MaskTool
+          original={erasing.canvas}
+          current={erasing.canvas}
+          onApply={(c) => {
+            snapshot()
+            const cur = canvasStore.get(id)
+            if (cur) {
+              canvasStore.update(id, {
+                pieces: cur.pieces.map((p) =>
+                  p.id === erasing.id ? { ...p, src: c.toDataURL('image/png'), hi: undefined, w: c.width, h: c.height } : p,
+                ),
+              })
+            }
+            setErasing(null)
+          }}
+          onClose={() => setErasing(null)}
+        />
+      )}
       {bgPicker && (
         <BackgroundPicker
           value={bgVal}
