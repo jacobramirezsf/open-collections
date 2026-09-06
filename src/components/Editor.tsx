@@ -16,6 +16,7 @@ import {
 } from '../lib/textures'
 import { PAPER_SHEETS, paperUrl, sheetDef } from '../lib/papers'
 import MaskTool from './MaskTool'
+import CropTool from './CropTool'
 import BackgroundPicker, { backgroundImageUrl, backgroundLabel, isContainedBackground, isGarment, isSheetValue } from './BackgroundPicker'
 import { useBodyLock } from './Panels'
 
@@ -66,6 +67,7 @@ export default function Editor({ item, onClose }: Props) {
   const [cutoutApplied, setCutoutApplied] = useState(false)
   const [refining, setRefining] = useState(false)
   const [bgPicker, setBgPicker] = useState(false)
+  const [cropping, setCropping] = useState(false)
   const [sheetRotate, setSheetRotate] = useState(0)
   const [busy, setBusy] = useState<string | null>('Loading image…')
   const [error, setError] = useState<string | null>(null)
@@ -611,6 +613,9 @@ export default function Editor({ item, onClose }: Props) {
             <button className="btn" onClick={removeBgPrecise} disabled={!!busy || !full} title="Higher-fidelity cutout for tricky edges. Uses studio credits, so try the standard one first.">
               Precise cutout
             </button>
+            <button className="btn" disabled={!!busy || !full} onClick={() => setCropping(true)} title="Take a detail out of the image and work on that">
+              Crop
+            </button>
             <button className="btn" disabled={!!busy || !full} onClick={() => setRefining(true)} title="Paint away parts of the image, or paint the original back">
               Erase / restore
             </button>
@@ -645,6 +650,9 @@ export default function Editor({ item, onClose }: Props) {
             </button>
             <button type="button" className="btn small mobile-only" disabled={!!busy || !full} onClick={() => void removeBgPrecise()} title="Higher-fidelity cutout. Uses studio credits.">
               Precise cutout
+            </button>
+            <button type="button" className="btn small mobile-only" disabled={!!busy || !full} onClick={() => setCropping(true)}>
+              Crop
             </button>
             <button type="button" className="btn small mobile-only" disabled={!!busy || !full} onClick={() => setRefining(true)}>
               Erase
@@ -879,6 +887,20 @@ export default function Editor({ item, onClose }: Props) {
             }
           }}
           onClose={() => setBgPicker(false)}
+        />
+      )}
+      {cropping && originalFull && (
+        <CropTool
+          source={originalFull}
+          onApply={(c) => {
+            setOriginalFull(c)
+            adopt(c)
+            setCutoutApplied(false)
+            setVector(null)
+            setCropping(false)
+            say(`Cropped to ${c.width} × ${c.height}px. Effects and cutout now work on this.`)
+          }}
+          onClose={() => setCropping(false)}
         />
       )}
       {refining && originalFull && full && (

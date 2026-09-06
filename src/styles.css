@@ -407,3 +407,21 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-2)
 .bg-name { font-size: 11px; color: var(--fg-2); line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bg-sub { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 4px; }
 .bg-swatch { width: 20px; height: 20px; border-radius: 3px; border: 1px solid var(--line-2); background-size: cover; background-position: center; flex: 0 0 auto; }
+
+/* Crop tool */
+.crop-tool { position: fixed; inset: 0; z-index: 85; display: flex; flex-direction: column; background: var(--bg); }
+@supports (height: 100dvh) { .crop-tool { height: 100dvh; } }
+.crop-tool .vtop { flex: 0 0 auto; }
+.crop-stage { flex: 1; position: relative; overflow: hidden; background: #2a2925; touch-action: none; }
+.crop-stage img { user-select: none; -webkit-user-drag: none; }
+.crop-box { position: absolute; box-shadow: 0 0 0 9999px rgba(20,20,20,0.55); outline: 1px solid #fff; cursor: move; }
+.crop-box::before, .crop-box::after { content: ''; position: absolute; inset: 0; pointer-events: none; }
+.crop-box::before { border-left: 1px solid rgba(255,255,255,0.35); border-right: 1px solid rgba(255,255,255,0.35); margin: 0 33.33%; }
+.crop-box::after { border-top: 1px solid rgba(255,255,255,0.35); border-bottom: 1px solid rgba(255,255,255,0.35); margin: 33.33% 0; }
+.crop-h { position: absolute; width: 30px; height: 30px; background: #fff; border: 1px solid #333; border-radius: 50%; touch-action: none; }
+.crop-h.nw { left: -15px; top: -15px; cursor: nwse-resize; }
+.crop-h.ne { right: -15px; top: -15px; cursor: nesw-resize; }
+.crop-h.sw { left: -15px; bottom: -15px; cursor: nesw-resize; }
+.crop-h.se { right: -15px; bottom: -15px; cursor: nwse-resize; }
+.crop-dock { flex: 0 0 auto; padding: 10px 12px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--bg); }
+.crop-dock .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
