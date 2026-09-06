@@ -53,9 +53,10 @@ export default function BackgroundPicker({ value, color, rotate, onPick, onColor
     onPick(v)
     onClose()
   }
+  // cutouts and garments show their whole silhouette; full-bleed surfaces fill the tile
   const Tile = ({ v, label, style, img }: { v: string; label: string; style?: React.CSSProperties; img?: string }) => (
     <button className={'bg-tile' + (value === v ? ' sel' : '')} onClick={() => pick(v)} title={label}>
-      <span className="bg-thumb" style={style}>{img && <img src={img} alt="" loading="lazy" />}</span>
+      <span className={'bg-thumb' + (isContainedBackground(v) ? ' fit' : '')} style={style}>{img && <img src={img} alt="" loading="lazy" />}</span>
       <span className="bg-name">{label}</span>
     </button>
   )
@@ -94,9 +95,11 @@ export default function BackgroundPicker({ value, color, rotate, onPick, onColor
             </button>
           </div>
 
-          {(['paper', 'edge', 'fabric'] as const).map((group) => (
+          {(['paper', 'edge', 'fabric', 'material'] as const).map((group) => (
             <div key={group}>
-              <h4 className="picker-h">{group === 'paper' ? 'Papers' : group === 'edge' ? 'Deckle and torn edges' : 'Fabric'}</h4>
+              <h4 className="picker-h">
+                {group === 'paper' ? 'Papers' : group === 'edge' ? 'Deckle and torn edges' : group === 'fabric' ? 'Fabric' : 'Wood and other surfaces'}
+              </h4>
               <div className="bg-grid">
                 {PAPER_SHEETS.filter((s) => s.group === group).map((s) => (
                   <Tile key={s.slug} v={'img:' + s.slug} label={s.label} img={paperUrl(s.slug)} />
@@ -114,7 +117,7 @@ export default function BackgroundPicker({ value, color, rotate, onPick, onColor
                 className={'bg-tile' + (openGarment === g.id ? ' open' : '') + (value.startsWith('garment:' + g.id + '/') ? ' sel' : '')}
                 onClick={() => setOpenGarment(openGarment === g.id ? null : g.id)}
               >
-                <span className="bg-thumb"><img src={garmentUrl(g.colors[0].file)} alt="" loading="lazy" /></span>
+                <span className="bg-thumb fit"><img src={garmentUrl(g.colors[0].file)} alt="" loading="lazy" /></span>
                 <span className="bg-name">{g.label}</span>
               </button>
             ))}

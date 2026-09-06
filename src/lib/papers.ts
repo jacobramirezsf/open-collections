@@ -8,7 +8,7 @@
 export interface PaperSheet {
   slug: string
   label: string
-  group: 'paper' | 'edge' | 'fabric'
+  group: 'paper' | 'edge' | 'fabric' | 'material'
   ext?: 'jpg' | 'webp'
   edge?: boolean
 }
@@ -30,12 +30,29 @@ export const PAPER_SHEETS: PaperSheet[] = [
   { slug: 'folded-gray', label: 'Folded gray', group: 'paper' },
   { slug: 'kraft', label: 'Kraft', group: 'paper' },
   { slug: 'parchment', label: 'Parchment', group: 'paper' },
+  { slug: 'terracotta-fold', label: 'Terracotta fold', group: 'paper' },
+  { slug: 'salmon-fold', label: 'Salmon fold', group: 'paper' },
+  { slug: 'kraft-grid', label: 'Kraft grid', group: 'paper' },
+  { slug: 'kraft-emboss', label: 'Kraft emboss', group: 'paper' },
+  { slug: 'oxblood-cloth', label: 'Oxblood cloth', group: 'paper' },
+  { slug: 'soft-grey', label: 'Soft grey', group: 'paper' },
+  { slug: 'blue-square', label: 'Blue square', group: 'paper' },
+  { slug: 'ruled-ledger', label: 'Ruled ledger', group: 'paper' },
+  { slug: 'graph-paper', label: 'Graph paper', group: 'paper' },
+  { slug: 'draft-paper', label: 'Draft paper', group: 'paper' },
   // deckle / torn edge sheets (alpha cutouts)
   { slug: 'deckle-white', label: 'Deckle white', group: 'edge', ext: 'webp', edge: true },
   { slug: 'torn-beige', label: 'Torn beige', group: 'edge', ext: 'webp', edge: true },
   { slug: 'torn-white', label: 'Torn white', group: 'edge', ext: 'webp', edge: true },
   { slug: 'handmade-gray', label: 'Handmade rough', group: 'edge', ext: 'webp', edge: true },
   { slug: 'ripped-kraft', label: 'Ripped kraft', group: 'edge', ext: 'webp', edge: true },
+  { slug: 'kraft-envelope', label: 'Kraft envelope', group: 'edge', ext: 'webp', edge: true },
+  { slug: 'tan-fold', label: 'Tan fold', group: 'edge', ext: 'webp', edge: true },
+  { slug: 'cream-fold', label: 'Cream fold', group: 'edge', ext: 'webp', edge: true },
+  { slug: 'blush-fold', label: 'Blush fold', group: 'edge', ext: 'webp', edge: true },
+  { slug: 'mustard-fold', label: 'Mustard fold', group: 'edge', ext: 'webp', edge: true },
+  { slug: 'green-card', label: 'Green card', group: 'edge', ext: 'webp', edge: true },
+  { slug: 'aged-block', label: 'Aged block', group: 'edge', ext: 'webp', edge: true },
   // fabric
   { slug: 'denim', label: 'Denim', group: 'fabric' },
   { slug: 'red-handmade', label: 'Red fiber', group: 'fabric' },
@@ -46,6 +63,10 @@ export const PAPER_SHEETS: PaperSheet[] = [
   { slug: 'swatch-chambray', label: 'Swatch chambray', group: 'fabric', ext: 'webp', edge: true },
   { slug: 'swatch-green', label: 'Swatch green', group: 'fabric', ext: 'webp', edge: true },
   { slug: 'denim-patch', label: 'Denim patch', group: 'fabric', ext: 'webp', edge: true },
+  { slug: 'sage-linen', label: 'Sage linen', group: 'fabric' },
+  // wood and other surfaces
+  { slug: 'plywood', label: 'Plywood', group: 'material' },
+  { slug: 'wood-panel', label: 'Wood panel', group: 'material' },
 ]
 
 export const sheetDef = (slug: string) => PAPER_SHEETS.find((s) => s.slug === slug)

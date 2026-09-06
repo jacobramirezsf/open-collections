@@ -400,6 +400,8 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-2)
   overflow: hidden; background: var(--card, #efece6); background-size: cover; background-position: center;
 }
 .bg-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bg-thumb.fit { background: var(--bg-2, #e8e5de); }
+.bg-thumb.fit img { object-fit: contain; padding: 3px; }
 .bg-thumb-checker { background-image: repeating-conic-gradient(#d9d6cf 0% 25%, #efece6 0% 50%); background-size: 12px 12px; }
 .bg-thumb-color input[type="color"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .bg-tile.sel .bg-thumb { border-color: var(--fg); box-shadow: 0 0 0 2px var(--fg); }

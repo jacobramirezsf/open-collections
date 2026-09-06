@@ -765,6 +765,11 @@ export default function Editor({ item, onClose }: Props) {
                             <option key={t.slug} value={'img:' + t.slug}>{t.label}</option>
                           ))}
                         </optgroup>
+                        <optgroup label="Wood and other surfaces">
+                          {PAPER_SHEETS.filter((t) => t.group === 'material').map((t) => (
+                            <option key={t.slug} value={'img:' + t.slug}>{t.label}</option>
+                          ))}
+                        </optgroup>
                       </select>
                       {!paperTex.startsWith('img:') && activePaper !== 'transparent' && (
                         <input
