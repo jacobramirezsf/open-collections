@@ -13,6 +13,7 @@ import CanvasStudio from './components/CanvasStudio'
 import { openNewCanvas } from './lib/canvas'
 import Intro, { introSeen, markIntroSeen } from './components/Intro'
 import SavePrompt from './components/SavePrompt'
+import UploadEditor from './components/UploadEditor'
 import { AccountPanel, BoardsPanel, Filters, PatentFilters, SaveToBoard, StatusPanel } from './components/Panels'
 
 const HINTS: Record<Tool, string[]> = {
@@ -20,7 +21,7 @@ const HINTS: Record<Tool, string[]> = {
   patents: ['goggles', 'sewing machine', 'bicycle', 'espresso machine', 'roller skate', 'diving suit', 'typewriter', 'kite', 'surfboard', 'toy robot', 'climbing', 'chair', 'synthesizer', 'camera'],
 }
 
-type View = { kind: 'search' } | { kind: 'board'; id: string } | { kind: 'similar'; base: Item } | { kind: 'sheet'; title: string; items: Item[] } | { kind: 'canvas'; id: string }
+type View = { kind: 'search' } | { kind: 'board'; id: string } | { kind: 'similar'; base: Item } | { kind: 'sheet'; title: string; items: Item[] } | { kind: 'canvas'; id: string } | { kind: 'editor' }
 
 function readUrl(): { query: Query; view: View; tool: Tool } {
   const p = new URLSearchParams(location.search)
@@ -29,7 +30,8 @@ function readUrl(): { query: Query; view: View; tool: Tool } {
   const tool: Tool = location.pathname.startsWith('/patents') ? 'patents' : 'museums'
   const query = paramsToQuery(p)
   if (tool === 'patents' && !p.get('n') && !p.get('limit')) query.limit = 100
-  return { query, view: cv ? { kind: 'canvas', id: cv[1] } : m ? { kind: 'board', id: m[1] } : { kind: 'search' }, tool }
+  const ed = /^#\/editor\b/.test(location.hash)
+  return { query, view: ed ? { kind: 'editor' } : cv ? { kind: 'canvas', id: cv[1] } : m ? { kind: 'board', id: m[1] } : { kind: 'search' }, tool }
 }
 
 function useBoards(): Board[] {
@@ -301,6 +303,15 @@ export default function App() {
     return new Set(sources.map((s) => s.key).filter((k) => !query.sources.includes(k)))
   }, [query.sources, sources])
 
+  if (view.kind === 'editor')
+    return (
+      <UploadEditor
+        onClose={() => {
+          location.hash = ''
+          setView({ kind: 'search' })
+        }}
+      />
+    )
   if (view.kind === 'canvas')
     return (
       <CanvasStudio

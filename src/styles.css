@@ -479,3 +479,15 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-2)
   .canvas-dock .opacity-ctl { flex: 1 1 100%; }
   .canvas-dock .opacity-ctl input[type="range"] { flex: 1 1 auto; width: auto; }
 }
+
+/* Standalone upload editor */
+.uploader { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+@supports (height: 100dvh) { .uploader { min-height: 100dvh; } }
+.uploader-inner { width: min(560px, 100%); }
+.dropzone {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  min-height: 220px; padding: 28px; text-align: center; cursor: pointer;
+  border: 1.5px dashed var(--line-2); border-radius: 8px; background: var(--bg-2, rgba(0,0,0,0.02));
+}
+.dropzone strong { font-size: 16px; }
+.dropzone.over { border-color: var(--fg); background: rgba(0,0,0,0.05); }

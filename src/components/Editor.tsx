@@ -23,6 +23,7 @@ import { useBodyLock } from './Panels'
 interface Props {
   item: Item
   onClose: () => void
+  standalone?: boolean // an uploaded image: export only, no boards or saved edits
 }
 
 const HT_DEFAULTS: HalftoneParams = { on: true, cell: 8, angle: 22, shape: 'dot', gain: 1.15, ink: '#141414', paper: '#f3f1ec', invert: false }
@@ -66,7 +67,7 @@ function loadImg(src: string): Promise<HTMLImageElement> {
   })
 }
 
-export default function Editor({ item, onClose }: Props) {
+export default function Editor({ item, onClose, standalone }: Props) {
   useBodyLock()
   const [params, setParams] = useState<HalftoneParams>(HT_DEFAULTS) // halftone-specific
   const [tex, setTex] = useState<TextureParams>({ ...TEXTURE_DEFAULTS }) // shared by other effects
@@ -393,7 +394,7 @@ export default function Editor({ item, onClose }: Props) {
       }
       setCutoutApplied(true)
       // banked so this credit never has to be spent on the same image twice
-      void bankCutout(cut)
+      if (!standalone) void bankCutout(cut)
       setParams((p) => ({ ...p, paper: 'transparent' }))
       setTex((t) => ({ ...t, paper: 'transparent' }))
     } catch (e) {
@@ -416,7 +417,7 @@ export default function Editor({ item, onClose }: Props) {
     setBusy('Vectorizing… (can take ~30s)')
     setError(null)
     try {
-      const body = !cutoutApplied ? JSON.stringify({ id: item.id }) : JSON.stringify({ image: toCanvas(full, 1024).toDataURL('image/png') })
+      const body = cutoutApplied || standalone ? JSON.stringify({ image: toCanvas(full, 1024).toDataURL('image/png') }) : JSON.stringify({ id: item.id })
       const res = await fetch('/api/vectorize', { method: 'POST', headers: { 'content-type': 'application/json' }, body })
       const payload = await res.json().catch(() => null)
       if (!res.ok) throw new Error(payload?.error || `Vectorization failed (${res.status})`)
@@ -430,10 +431,14 @@ export default function Editor({ item, onClose }: Props) {
     } finally {
       setBusy(null)
     }
-  }, [full, cutoutApplied, item.id])
+  }, [full, cutoutApplied, item.id, standalone])
 
   const stackName = stack.length ? stack.join('-') : vector ? 'vector' : cutoutApplied ? 'cutout' : 'edit'
-  const baseName = useMemo(() => `${item.source}-${item.id.split(':').pop()}-${stackName}`.replace(/[^a-zA-Z0-9._-]+/g, '-'), [item, stackName])
+  const baseName = useMemo(
+    // an upload is named after the file you brought; a collection item after its record
+    () => (standalone ? `${item.title}-${stackName}` : `${item.source}-${item.id.split(':').pop()}-${stackName}`).replace(/[^a-zA-Z0-9._-]+/g, '-'),
+    [item, stackName, standalone],
+  )
 
   const exportOptions = useMemo(() => {
     if (!full) return []
@@ -935,8 +940,10 @@ export default function Editor({ item, onClose }: Props) {
             </select>
           </div>
           <div className="actions export-actions">
-            <button className="btn primary" onClick={exportPng} disabled={!full || !!busy}>{isTouch() ? 'Save image' : 'Download PNG'}</button>
-            <button className="btn" onClick={saveEdit} disabled={!full || !!busy} title="Keeps this edit on your Edits board with a link to the original work">Save to Edits</button>
+            <button className="btn primary" onClick={exportPng} disabled={!full || !!busy}>{isTouch() ? 'Save image' : 'Download image'}</button>
+            {!standalone && (
+              <button className="btn" onClick={saveEdit} disabled={!full || !!busy} title="Keeps this edit on your Edits board with a link to the original work">Save to Edits</button>
+            )}
             <button className="btn" onClick={exportSvg} disabled={!full || !!busy || !svgOk} title={svgOk ? 'Resolution-independent halftone for screenprint separations' : 'Vector SVG export is available when Halftone is the only texture'}>
               SVG
             </button>
