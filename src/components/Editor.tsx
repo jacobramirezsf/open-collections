@@ -8,6 +8,7 @@ import { proxyImageUrl, uploadEdit} from '../lib/api'
 import { saveBlob } from '../lib/zip'
 import { saveImage } from '../lib/save'
 import { boardStore, CUTOUTS_ID, EDITS_ID } from '../lib/boards'
+import { IDB_PREFIX, putBlob } from '../lib/blobstore'
 import { onAuthChange } from '../lib/account'
 import { computeScreen, renderScreen, screenToSvg, type HalftoneParams } from '../lib/halftone'
 import {
@@ -45,6 +46,22 @@ const SOURCE_MAX = 6000
 const EXPORT_MAX_PIXELS = 64e6
 const sheetCache = new Map<string, HTMLImageElement>()
 const isTouch = () => typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
+
+// Background removal has to run at a bounded size (the models and the service both cap their
+// input), but the result is really a mask. Compositing that mask back onto the untouched original
+// keeps the source resolution: only the cut edge is limited by the working size, not the picture.
+function applyAlphaMask(full: HTMLCanvasElement, mask: HTMLImageElement | HTMLCanvasElement): HTMLCanvasElement {
+  const out = document.createElement('canvas')
+  out.width = full.width
+  out.height = full.height
+  const ctx = out.getContext('2d')!
+  ctx.drawImage(full, 0, 0)
+  ctx.globalCompositeOperation = 'destination-in'
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(mask, 0, 0, out.width, out.height)
+  ctx.globalCompositeOperation = 'source-over'
+  return out
+}
 
 function toCanvas(img: HTMLImageElement | HTMLCanvasElement, maxEdge: number): HTMLCanvasElement {
   const w = img instanceof HTMLImageElement ? img.naturalWidth : img.width
@@ -300,7 +317,7 @@ export default function Editor({ item, onClose, standalone }: Props) {
       })
       const url = URL.createObjectURL(out)
       try {
-        adopt(toCanvas(await loadImg(url), SOURCE_MAX))
+        adopt(applyAlphaMask(originalFull, await loadImg(url)))
       } finally {
         URL.revokeObjectURL(url)
       }
@@ -338,7 +355,11 @@ export default function Editor({ item, onClose, standalone }: Props) {
           if (!blob) return
           url = await uploadEdit(blob, 'image/png')
         } else {
-          url = toCanvas(cut, 1200).toDataURL('image/png')
+          const blob: Blob | null = await new Promise((r) => toCanvas(cut, 1400).toBlob(r, 'image/png'))
+          if (!blob) return
+          const key = `cutout-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+          if (!(await putBlob(key, blob))) return
+          url = IDB_PREFIX + key
         }
         const cutItem: Item = {
           ...item,
@@ -360,7 +381,7 @@ export default function Editor({ item, onClose, standalone }: Props) {
         }
         const board = boardStore.create('Cutouts', CUTOUTS_ID)
         boardStore.addItems(board.id, [cutItem])
-        say('Cutout saved to your Cutouts board, ready to reopen any time.')
+        say(boardStore.lastPersistError() || 'Cutout saved to your Cutouts board, ready to reopen any time.')
       } catch {
         /* the cutout itself still worked; filing it is best effort */
       }
@@ -387,7 +408,7 @@ export default function Editor({ item, onClose, standalone }: Props) {
       const url = URL.createObjectURL(blob)
       let cut: HTMLCanvasElement
       try {
-        cut = toCanvas(await loadImg(url), SOURCE_MAX)
+        cut = applyAlphaMask(originalFull, await loadImg(url))
         adopt(cut)
       } finally {
         URL.revokeObjectURL(url)
@@ -529,14 +550,23 @@ export default function Editor({ item, onClose, standalone }: Props) {
           if (!blob) throw new Error('render failed')
           url = await uploadEdit(blob, mime)
         } else {
-          // local-only: store a compact data URL in the browser
-          const smallSrc = full ? buildOutput(toCanvas(full, 1200), 1) : null
+          // local-only: the bytes go to IndexedDB and the board keeps a short reference, so a
+          // second and third save do not run the origin out of localStorage
+          const smallSrc = full ? buildOutput(toCanvas(full, 1400), 1) : null
           if (!smallSrc) throw new Error('render failed')
-          url = smallSrc.toDataURL('image/jpeg', 0.85)
+          const localMime = isTransparent ? 'image/png' : 'image/jpeg'
+          const blob: Blob | null = await new Promise((r) => smallSrc.toBlob(r, localMime, 0.85))
+          if (!blob) throw new Error('render failed')
+          const key = `edit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+          if (!(await putBlob(key, blob))) throw new Error('This browser would not store the image (private browsing can block it).')
+          url = IDB_PREFIX + key
         }
         const label = vector ? 'vector' : stack.length ? stack.map((k) => (k === 'halftone' ? 'halftone' : effectDef(k).label.toLowerCase())).join(' + ') : 'edit'
+        // One entry per source + treatment: saving the same halftone twice updates it, while a
+        // different effect stack becomes its own variant. No silent duplicates, no lost work.
+        const variantKey = `${item.id}|${label}${cutoutApplied ? '|cut' : ''}`.replace(/[^a-zA-Z0-9|._-]+/g, '-')
         const editItem: Item = {
-          id: `edits:${Date.now()}`,
+          id: `edits:${variantKey}`,
           source: 'edits',
           sourceName: 'My edits',
           sourceUrl: item.sourceUrl, // link back to the original record
@@ -561,8 +591,11 @@ export default function Editor({ item, onClose, standalone }: Props) {
           files: [],
         }
         const board = boardStore.create('Edits', EDITS_ID)
-        boardStore.addItems(board.id, [editItem])
-        say(user ? 'Saved to your Edits board' : 'Saved to Edits (this browser). Sign in to sync.')
+        const mode = boardStore.upsertItem(board.id, editItem)
+        const failed = boardStore.lastPersistError()
+        if (failed) throw new Error(failed)
+        const what = mode === 'updated' ? `Updated the ${label} edit` : `Saved a new ${label} edit`
+        say(user ? `${what} on your Edits board` : `${what} (this browser). Sign in to sync.`)
       } catch (e) {
         setError((e as Error).message)
       } finally {
@@ -700,7 +733,10 @@ export default function Editor({ item, onClose, standalone }: Props) {
             {cutoutApplied && <button className="btn" onClick={restoreOriginal}>Restore original</button>}
           </div>
           <p className="faint hide-mobile" style={{ fontSize: 12, margin: '6px 0 0' }}>
-            {full ? `Source ${full.width} × ${full.height}px. ` : ''}Standard cutout runs free on your device; Precise re-cuts the original with a higher-fidelity service (rate-limited). Scroll or pinch to zoom.
+            {full ? `Working at ${full.width} × ${full.height}px (source ${originalFull ? `${originalFull.width} × ${originalFull.height}` : '—'}). ` : ''}
+            Standard cutout runs free on your device; Precise re-cuts with a higher-fidelity service (rate-limited).
+            Both trace the outline at a reduced size for speed, then apply it to the full-resolution image, so the picture keeps its detail
+            and only the cut edge is softer. Scroll or pinch to zoom.
           </p>
 
           <h3 className="sec-vector-h">Vectorize</h3>
@@ -722,6 +758,7 @@ export default function Editor({ item, onClose, standalone }: Props) {
           </div>
 
           <h3 style={{ opacity: vector ? 0.45 : 1 }}>Texture{stack.length > 1 ? ` · ${stack.length} stacked` : ''}</h3>
+          <div className="chips-wrap">
           <div className="chips" style={{ marginBottom: 10 }}>
             <button type="button" className={'btn small mobile-only' + (cutoutApplied ? ' active' : '')} disabled={!!busy || !full} onClick={() => (cutoutApplied ? restoreOriginal() : void removeBgLocal())}>
               {cutoutApplied ? 'Cutout ✓' : 'Cutout'}
@@ -746,6 +783,7 @@ export default function Editor({ item, onClose, standalone }: Props) {
                 {stack.length > 1 && stack.includes(e.key) ? ` ${stack.indexOf(e.key) + 1}` : ''}
               </button>
             ))}
+          </div>
           </div>
 
           {stack.length > 1 && (

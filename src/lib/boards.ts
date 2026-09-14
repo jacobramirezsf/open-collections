@@ -1,5 +1,6 @@
 // Boards live in localStorage for V1. The BoardStore interface is the seam for a future cloud-synced store.
 import type { Item } from '../../shared/types'
+import { IDB_PREFIX, resolveRef } from './blobstore'
 
 export interface Board {
   id: string
@@ -15,6 +16,11 @@ export interface BoardStore {
   rename(id: string, name: string): void
   remove(id: string): void
   addItems(id: string, items: Item[]): number
+  // Replaces an item with the same id, or adds it. Used so re-saving the same edit updates it
+  // rather than quietly piling up near-identical entries.
+  upsertItem(id: string, item: Item): 'added' | 'updated'
+  // Why the last write did not stick (storage full, private mode), or null when it did.
+  lastPersistError(): string | null
   removeItem(id: string, itemId: string): void
   toggleFavorite(item: Item): boolean // returns new state
   isFavorite(id: string): boolean
@@ -72,17 +78,78 @@ function load(): Board[] {
   }
 }
 
+let persistError: string | null = null
+
+// Object URLs are per-session, so anything hydrated from IndexedDB is written back as its `idb:`
+// reference. Without this a reload would leave dead blob: URLs behind.
+function serialize(boards: Board[]): string {
+  return JSON.stringify(boards, (key, value) => {
+    if (value && typeof value === 'object' && '__ref' in (value as Record<string, unknown>)) {
+      const rec = { ...(value as Record<string, unknown>) }
+      const ref = rec.__ref as string
+      delete rec.__ref
+      for (const k of ['thumbnailUrl', 'imageUrl', 'originalImageUrl']) {
+        if (typeof rec[k] === 'string' && (rec[k] as string).startsWith('blob:')) rec[k] = ref
+      }
+      return rec
+    }
+    void key
+    return value
+  })
+}
+
 function save(boards: Board[]) {
   try {
-    localStorage.setItem(KEY, JSON.stringify(boards))
+    localStorage.setItem(KEY, serialize(boards))
+    persistError = null
   } catch (e) {
+    // Swallowing this is how a save could report success while changing nothing.
+    const quota = e instanceof DOMException && (e.name === 'QuotaExceededError' || e.code === 22)
+    persistError = quota
+      ? 'This browser\u2019s storage for the site is full, so the change was not kept. Remove a few saved items, or sign in to store them on your account.'
+      : 'This browser would not store the change (private browsing can block it).'
     console.warn('Could not save boards', e)
   }
+}
+
+// Board records hold short `idb:` references; swap them for usable object URLs once at startup.
+async function hydrate(boards: Board[]): Promise<boolean> {
+  let touched = false
+  for (const b of boards) {
+    for (const it of b.items) {
+      for (const k of ['thumbnailUrl', 'imageUrl', 'originalImageUrl'] as const) {
+        const v = it[k]
+        if (typeof v === 'string' && v.startsWith(IDB_PREFIX)) {
+          const url = await resolveRef(v)
+          const rec = it as unknown as Record<string, unknown>
+          if (url) {
+            rec[k] = url
+            rec.__ref = v // kept so the reference, not the object URL, is what gets written back
+          } else {
+            // the bytes are gone (cleared storage, another browser): blank it rather than let the
+            // browser request "idb:…" as if it were a path
+            rec[k] = ''
+            rec.__ref = v
+            rec.__missing = true
+          }
+          touched = true
+        }
+      }
+    }
+  }
+  return touched
 }
 
 export function createLocalBoardStore(): BoardStore {
   let boards = withFavorites(load())
   const listeners = new Set<() => void>()
+  // resolve stored blobs without blocking first paint
+  void hydrate(boards).then((touched) => {
+    if (touched) {
+      boards = boards.slice()
+      listeners.forEach((l) => l())
+    }
+  })
   const commit = () => {
     boards = withFavorites(boards) // keeps Favorites pinned first + new identity for React
     save(boards)
@@ -133,6 +200,18 @@ export function createLocalBoardStore(): BoardStore {
       }
       return added
     },
+    upsertItem(id, item) {
+      const b = boards.find((x) => x.id === id)
+      if (!b) return 'added'
+      const at = b.items.findIndex((i) => i.id === item.id)
+      const mode: 'added' | 'updated' = at >= 0 ? 'updated' : 'added'
+      if (at >= 0) b.items[at] = item
+      else b.items.push(item)
+      b.updatedAt = Date.now()
+      commit()
+      return mode
+    },
+    lastPersistError: () => persistError,
     removeItem(id, itemId) {
       const b = boards.find((x) => x.id === id)
       if (!b) return

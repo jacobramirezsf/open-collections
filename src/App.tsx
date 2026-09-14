@@ -14,14 +14,21 @@ import { openNewCanvas } from './lib/canvas'
 import Intro, { introSeen, markIntroSeen } from './components/Intro'
 import SavePrompt from './components/SavePrompt'
 import UploadEditor from './components/UploadEditor'
-import { AccountPanel, BoardsPanel, Filters, PatentFilters, SaveToBoard, StatusPanel } from './components/Panels'
+import { AccountPanel, BoardsPanel, Filters, PatentFilters, SaveToBoard, StatusPanel, reversedYears } from './components/Panels'
 
 const HINTS: Record<Tool, string[]> = {
   museums: ['chair', 'woman', 'helmet', 'embroidery', 'bicycle', 'goggles', 'poster', 'tool', 'sewing machine', 'packaging', 'lettering', 'ceramics', 'Japanese textile', 'Italian furniture', 'rome', 'map', 'spacecraft'],
   patents: ['goggles', 'sewing machine', 'bicycle', 'espresso machine', 'roller skate', 'diving suit', 'typewriter', 'kite', 'surfboard', 'toy robot', 'climbing', 'chair', 'synthesizer', 'camera'],
 }
 
-type View = { kind: 'search' } | { kind: 'board'; id: string } | { kind: 'similar'; base: Item } | { kind: 'sheet'; title: string; items: Item[] } | { kind: 'canvas'; id: string } | { kind: 'editor' }
+type View =
+  | { kind: 'search' }
+  | { kind: 'board'; id: string }
+  | { kind: 'similar'; base: Item }
+  // a contact sheet carries its origin so Back restores that view, its selection and its scroll
+  | { kind: 'sheet'; title: string; items: Item[]; from: View; fromSelection: string[]; fromScroll: number; fromHash: string }
+  | { kind: 'canvas'; id: string }
+  | { kind: 'editor' }
 
 function readUrl(): { query: Query; view: View; tool: Tool } {
   const p = new URLSearchParams(location.search)
@@ -164,11 +171,32 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, view.kind, tool])
 
+  const viewRef = useRef(view)
+  viewRef.current = view
+
   useEffect(() => {
-    // hash routing for boards
-    const onHash = () => setView(readUrl().view)
+    // A contact sheet lives in memory (its items are a snapshot), so the hash never drives it.
+    // Leaving the sheet by browser Back restores the origin's selection and scroll like our own
+    // Back does, rather than dropping the user in an unrelated view.
+    const onHash = () => {
+      if (location.hash.startsWith('#/sheet')) return
+      const cur = viewRef.current
+      if (cur.kind === 'sheet') {
+        setView(cur.from)
+        setSelected(new Set(cur.fromSelection))
+        setSelectMode(cur.fromSelection.length > 0)
+        requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, cur.fromScroll)))
+        return
+      }
+      setView(readUrl().view)
+    }
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+
+  // a reload lands without the sheet's items, so do not leave a sheet URL behind
+  useEffect(() => {
+    if (location.hash.startsWith('#/sheet')) history.replaceState(null, '', location.pathname + location.search)
   }, [])
 
   const switchTool = (t: Tool) => {
@@ -186,6 +214,25 @@ export default function App() {
       location.hash = ''
       setView({ kind: 'search' })
     }
+  }
+
+  // Opening a contact sheet snapshots the current view so Back can put everything back.
+  const openSheet = (title: string, sheetItems: Item[]) => {
+    const from: View = view
+    const fromSelection = [...selected]
+    const fromScroll = window.scrollY
+    const fromHash = location.hash
+    location.hash = '#/sheet'
+    setView({ kind: 'sheet', title, items: sheetItems, from, fromSelection, fromScroll, fromHash })
+  }
+
+  const closeSheet = (sheet: Extract<View, { kind: 'sheet' }>) => {
+    location.hash = sheet.fromHash
+    setView(sheet.from)
+    setSelected(new Set(sheet.fromSelection))
+    setSelectMode(sheet.fromSelection.length > 0)
+    // the grid needs a paint before it can be scrolled back to where it was
+    requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, sheet.fromScroll)))
   }
 
   const apply = (patch: Partial<Query>) => {
@@ -323,7 +370,10 @@ export default function App() {
         }}
       />
     )
-  if (view.kind === 'sheet') return <ContactSheet items={view.items} title={view.title} onClose={() => setView(similarItems ? { kind: 'similar', base: similarItems[0] } : board ? { kind: 'board', id: board.id } : { kind: 'search' })} />
+  if (view.kind === 'sheet') {
+    const sheet = view
+    return <ContactSheet items={sheet.items} title={sheet.title} onClose={() => closeSheet(sheet)} />
+  }
 
   const statusText = () => {
     if (view.kind === 'board') return board ? <>Board <b>{board.name}</b> · {board.items.length} items</> : 'Board not found'
@@ -426,7 +476,7 @@ export default function App() {
           <button className="btn small" onClick={closeSpecial}>← Back to search</button>
           {view.kind === 'board' && board && (
             <>
-              <button className="btn small" onClick={() => setView({ kind: 'sheet', title: board.name, items: board.items })} disabled={!board.items.length}>Contact sheet</button>
+              <button className="btn small" onClick={() => openSheet(board.name, board.items)} disabled={!board.items.length}>Contact sheet</button>
               <button className="btn small" onClick={() => { setSelected(new Set(board.items.map((i) => i.id))); setSelectMode(true) }} disabled={!board.items.length}>Select all</button>
               <button className="btn small" onClick={() => { const n = prompt('Rename board', board.name); if (n) boardStore.rename(board.id, n) }}>Rename</button>
               {selected.size > 0 && <button className="btn small danger" onClick={() => { [...selected].forEach((id) => boardStore.removeItem(board.id, id)); setSelected(new Set()) }}>Remove selected from board</button>}
@@ -438,7 +488,17 @@ export default function App() {
       {view.kind === 'search' && query.q && !loading && !error && items.length === 0 && (
         <div className="empty">
           <p>No results for “{query.q}”{tool === 'museums' && query.pd ? ' with public-domain filter' : ''}{query.from != null || query.to != null ? ' in that date range' : ''}.</p>
-          <p className="faint">{tool === 'patents' ? 'Try a broader word or fewer filters.' : 'Try a broader word, clear filters, or enable more sources.'}</p>
+          {reversedYears(query) ? (
+            // the real reason, rather than generic advice about broadening the search
+            <div className="year-warning" style={{ justifyContent: 'center', margin: '4px auto 0', maxWidth: 460 }}>
+              <span>The year range runs backwards: <b>{query.from}</b> is after <b>{query.to}</b>, so nothing can match it.</span>
+              <button className="btn small" type="button" onClick={() => apply({ from: query.to, to: query.from })}>
+                Swap to {query.to}–{query.from}
+              </button>
+            </div>
+          ) : (
+            <p className="faint">{tool === 'patents' ? 'Try a broader word or fewer filters.' : 'Try a broader word, clear filters, or enable more sources.'}</p>
+          )}
         </div>
       )}
       {view.kind === 'search' && !query.q && items.length === 0 && !loading && (
@@ -487,7 +547,7 @@ export default function App() {
           </button>
           <button className="btn" onClick={(e) => openSave(selectedItems, e.currentTarget)}>Save to board</button>
           {selectedItems.length === 1 && selectedItems[0].contentType === 'image' && <button className="btn" onClick={() => similarTo(selectedItems[0])}>Similar</button>}
-          <button className="btn" onClick={() => setView({ kind: 'sheet', title: query.q || board?.name || 'Selection', items: selectedItems })}>Contact sheet</button>
+          <button className="btn" onClick={() => openSheet(query.q || board?.name || 'Selection', selectedItems)}>Contact sheet</button>
           {board && (
             <button
               className="btn danger"

@@ -138,7 +138,7 @@ function isLive(item: Item): boolean {
 }
 
 export function downloadUrl(item: Item, fileIndex: number | 'image' = 'image'): string {
-  if (item.originalImageUrl?.startsWith('data:')) return item.originalImageUrl
+  if (isLocalUrl(item.originalImageUrl)) return item.originalImageUrl!
   if (isLive(item)) {
     const f = fileIndex === 'image' ? null : item.files[Number(fileIndex)]
     const url = f?.url || item.originalImageUrl || item.imageUrl || item.thumbnailUrl || ''
@@ -148,8 +148,13 @@ export function downloadUrl(item: Item, fileIndex: number | 'image' = 'image'): 
   return `/api/download?id=${encodeURIComponent(item.id)}&file=${fileIndex}`
 }
 
+// data: and blob: URLs are already in the browser. Locally saved edits now arrive as blob: URLs
+// from IndexedDB, and sending one to the image proxy would ask the server to fetch a URL that only
+// exists in this tab.
+export const isLocalUrl = (u?: string | null) => !!u && (u.startsWith('data:') || u.startsWith('blob:'))
+
 export function proxyImageUrl(item: Item, size: 'thumb' | 'view' | 'orig' = 'thumb'): string {
-  if (item.originalImageUrl?.startsWith('data:')) return item.originalImageUrl
+  if (isLocalUrl(item.originalImageUrl)) return item.originalImageUrl!
   if (isLive(item)) {
     const url = size === 'thumb' ? item.thumbnailUrl : item.originalImageUrl || item.imageUrl || item.thumbnailUrl
     return `/api/image?url=${encodeURIComponent(url || '')}`

@@ -50,11 +50,13 @@ export default function MaskTool({ original, current, onApply, onClose }: Props)
   const [soft, setSoft] = useState(0.55) // 0 hard … 1 soft
   const [histLen, setHistLen] = useState({ u: 0, r: 0 })
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null)
+  const [workWidth, setWorkWidth] = useState(0) // the size the brush actually paints at
 
   // ---- setup ----
   useEffect(() => {
     const base = scaled(original, WORK_MAX)
     baseRef.current = base
+    setWorkWidth(base.width)
     // seed the mask from the current image's alpha (white where visible, transparent where erased)
     const mask = document.createElement('canvas')
     mask.width = base.width
@@ -337,17 +339,19 @@ export default function MaskTool({ original, current, onApply, onClose }: Props)
     mc.drawImage(initialMask.current!, 0, 0)
   })
 
+  // Painting happens at a working size so the brush stays responsive, but the result is applied to
+  // the full-resolution original: erasing part of a picture should not shrink the rest of it.
   const apply = () => {
-    const base = baseRef.current
     const mask = maskRef.current
-    if (!base || !mask) return
+    if (!mask) return
     const out = document.createElement('canvas')
-    out.width = base.width
-    out.height = base.height
+    out.width = original.width
+    out.height = original.height
     const ctx = out.getContext('2d')!
-    ctx.drawImage(base, 0, 0)
+    ctx.drawImage(original, 0, 0)
     ctx.globalCompositeOperation = 'destination-in'
-    ctx.drawImage(mask, 0, 0)
+    ctx.imageSmoothingQuality = 'high'
+    ctx.drawImage(mask, 0, 0, out.width, out.height)
     ctx.globalCompositeOperation = 'source-over'
     onApply(out)
   }
@@ -404,7 +408,10 @@ export default function MaskTool({ original, current, onApply, onClose }: Props)
             <input type="range" min={0} max={1} step={0.05} value={soft} onChange={(e) => setSoft(Number(e.target.value))} />
           </label>
         </div>
-        <p className="faint" style={{ fontSize: 11, margin: '6px 0 0' }}>One finger paints · pinch to zoom in close · on desktop scroll zooms, hold space to pan.</p>
+        <p className="faint" style={{ fontSize: 11, margin: '6px 0 0' }}>
+          One finger paints · pinch to zoom in close · on desktop scroll zooms, hold space to pan.
+          Painting runs at {workWidth}px for speed; Apply writes it back onto the full {original.width} × {original.height}px image.
+        </p>
       </div>
     </div>
   )

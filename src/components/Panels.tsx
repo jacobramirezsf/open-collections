@@ -57,6 +57,25 @@ export function SidePanel({ title, onClose, children, extra }: { title: string; 
   )
 }
 
+// A reversed year range silently matches nothing, so say so next to the inputs and offer the swap.
+export function reversedYears(q: { from?: number; to?: number }): boolean {
+  return typeof q.from === 'number' && typeof q.to === 'number' && q.from > q.to
+}
+
+function YearWarning({ draft, onChange }: { draft: Query; onChange: (q: Query) => void }) {
+  if (!reversedYears(draft)) return null
+  return (
+    <div className="year-warning" style={{ gridColumn: '1 / -1' }}>
+      <span>
+        <b>{draft.from}</b> is after <b>{draft.to}</b>, so nothing can match this range.
+      </span>
+      <button className="btn small" type="button" onClick={() => onChange({ ...draft, from: draft.to, to: draft.from })}>
+        Swap to {draft.to}–{draft.from}
+      </button>
+    </div>
+  )
+}
+
 export function BoardsPanel({ boards, signedIn, onClose, onOpen, onCreate, onDelete }: { boards: Board[]; signedIn: boolean; onClose: () => void; onOpen: (b: Board) => void; onCreate: (name: string) => void; onDelete: (b: Board) => void }) {
   const [name, setName] = useState('')
   return (
@@ -225,6 +244,7 @@ export function Filters({ draft, sources, onChange, onApply, onClear }: { draft:
         <span className="label">Year to</span>
         <input className="input" type="number" placeholder="1950" value={draft.to ?? ''} onChange={(e) => onChange({ ...draft, to: num(e.target.value) })} />
       </div>
+      <YearWarning draft={draft} onChange={onChange} />
       <div>
         <span className="label">Object type</span>
         <input className="input" placeholder="furniture, print, textile…" value={draft.type ?? ''} onChange={(e) => onChange({ ...draft, type: e.target.value || undefined })} />
@@ -285,6 +305,7 @@ export function PatentFilters({ draft, onChange, onApply, onClear }: { draft: Qu
         <span className="label">Year to</span>
         <input className="input" type="number" placeholder="1980" value={draft.to ?? ''} onChange={(e) => onChange({ ...draft, to: num(e.target.value) })} />
       </div>
+      <YearWarning draft={draft} onChange={onChange} />
       <div>
         <span className="label">Inventor</span>
         <input className="input" placeholder="name" value={draft.creator ?? ''} onChange={(e) => onChange({ ...draft, creator: e.target.value || undefined })} />

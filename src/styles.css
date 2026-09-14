@@ -491,3 +491,33 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-2)
 }
 .dropzone strong { font-size: 16px; }
 .dropzone.over { border-color: var(--fg); background: rgba(0,0,0,0.05); }
+
+.year-warning {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 10px; border: 1px solid var(--danger, #b3261e); border-radius: 4px;
+  background: rgba(179,38,30,0.06); font-size: 12.5px; line-height: 1.4;
+}
+
+/* --- Mobile: no important control should sit off the side of the screen (audit UX-01) --- */
+@media (max-width: 800px) {
+  /* The canvas dock used to be one nowrap row, which pushed Save to Edits and the aspect and
+     export selects past the right edge with no hint they were there. Wrapping keeps every control
+     reachable, and the dock scrolls vertically if it needs to, which is far easier to discover. */
+  .canvas-dock { max-height: 40vh; overflow-y: auto; overscroll-behavior: contain; }
+  .canvas-dock .chips { flex-wrap: wrap; overflow-x: visible; row-gap: 6px; }
+  .canvas-dock .chips > .btn,
+  .canvas-dock .chips > .btn-like,
+  .canvas-dock .chips > select { flex: 0 1 auto; }
+  .canvas-dock .opacity-ctl { flex: 1 1 100%; }
+  .canvas-dock .opacity-ctl input[type="range"] { flex: 1 1 auto; width: auto; }
+
+  /* The texture rack stays a horizontal rail (it is long by nature), but it now says so: a fade on
+     the right edge signals there is more, instead of the list simply appearing to end. */
+  .editor .chips { position: relative; scroll-padding-inline: 12px; }
+  .editor .chips-wrap { position: relative; }
+  .editor .chips-wrap::after {
+    content: ''; position: absolute; right: 0; top: 0; bottom: 8px; width: 28px; pointer-events: none;
+    background: linear-gradient(to right, rgba(243,241,236,0), var(--bg));
+  }
+  .editor .chips-wrap.at-end::after { opacity: 0; }
+}

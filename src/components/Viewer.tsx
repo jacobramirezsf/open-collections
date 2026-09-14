@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { Item } from '../../shared/types'
 import { downloadUrl, proxyImageUrl } from '../lib/api'
-import { downloadItem, triggerDownload } from '../lib/zip'
+import { downloadItem } from '../lib/zip'
 import { ModelIcon } from './Grid'
 import { useBodyLock } from './Panels'
 import Editor from './Editor'
@@ -35,6 +35,28 @@ export default function Viewer({ items, index, onClose, onNav, onSave, onSimilar
   const [bigLoaded, setBigLoaded] = useState(false)
   const [busy, setBusy] = useState(false)
   const [dlError, setDlError] = useState<string | null>(null)
+  // which alternate file is in flight, and which one failed so it can offer a retry
+  const [fileBusy, setFileBusy] = useState<number | null>(null)
+  const [fileError, setFileError] = useState<{ index: number; message: string } | null>(null)
+
+  // Alternate files used to be a bare anchor navigation: no progress, and an upstream failure was
+  // completely silent. They now take the same route as the main download, which times out, falls
+  // back to the source host when the proxy is blocked, and reports what went wrong.
+  const getFile = useCallback(async (index: number) => {
+    setFileBusy(index)
+    setFileError(null)
+    try {
+      await downloadItem(item, index)
+    } catch (e) {
+      const err = e as Error
+      setFileError({
+        index,
+        message: err.name === 'AbortError' ? 'That file timed out. The source host may be slow.' : err.message,
+      })
+    } finally {
+      setFileBusy(null)
+    }
+  }, [item])
   const [editing, setEditing] = useState(false)
 
   useEffect(() => {
@@ -139,12 +161,27 @@ export default function Viewer({ items, index, onClose, onNav, onSave, onSimilar
             <div className="files">
               <span className="label">{is3d ? 'Download formats' : 'Other files'}</span>
               {item.files.map((f, i) => (
-                <button key={i} className="btn small" onClick={() => triggerDownload(downloadUrl(item, i))} title={f.filename || f.url}>
-                  {f.format.toUpperCase()}
-                  {shortLabel(f) ? ` · ${shortLabel(f)}` : ''}
-                  {f.size ? ` · ${(f.size / 1e6).toFixed(1)} MB` : ''}
+                <button
+                  key={i}
+                  className={'btn small' + (fileError?.index === i ? ' danger' : '')}
+                  disabled={fileBusy !== null}
+                  onClick={() => void getFile(i)}
+                  title={f.filename || f.url}
+                >
+                  {fileBusy === i ? 'Downloading…' : fileError?.index === i ? 'Retry' : (
+                    <>
+                      {f.format.toUpperCase()}
+                      {shortLabel(f) ? ` · ${shortLabel(f)}` : ''}
+                      {f.size ? ` · ${(f.size / 1e6).toFixed(1)} MB` : ''}
+                    </>
+                  )}
                 </button>
               ))}
+              {fileError && (
+                <p style={{ color: 'var(--danger)', fontSize: 12, margin: '6px 0 0', flexBasis: '100%' }}>
+                  {fileError.message} Tap the highlighted file to try again, or open the original record.
+                </p>
+              )}
             </div>
           )}
           <div className="src">

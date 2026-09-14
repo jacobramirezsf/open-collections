@@ -2,12 +2,13 @@
 // drag to move, pinch to scale/rotate, layer strip, paper backgrounds, undo, export/share.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { boardStore, type Board } from '../lib/boards'
+import { IDB_PREFIX, putBlob } from '../lib/blobstore'
 import { BLEND_MODES, canvasStore, rememberCanvas, type BlendMode, type CanvasDoc, type CanvasPiece } from '../lib/canvas'
 import { FONTS, TEXT_DEFAULTS, TEXT_SHAPES, renderTextPiece, type TextProps } from '../lib/textpiece'
 import MaskTool from './MaskTool'
 import { EFFECTS } from '../lib/textures'
 import BackgroundPicker, { backgroundImageUrl, backgroundLabel, isContainedBackground, isSheetValue } from './BackgroundPicker'
-import { proxyImageUrl, uploadEdit } from '../lib/api'
+import { isLocalUrl, proxyImageUrl, uploadEdit } from '../lib/api'
 import { saveImage } from '../lib/save'
 import { onAuthChange } from '../lib/account'
 import { useBodyLock } from './Panels'
@@ -61,7 +62,7 @@ const ASPECTS: { label: string; value: number }[] = [
 const bgValue = (raw: string) => (raw.startsWith('paper:') ? 'img:' + raw.slice(6) : raw)
 
 function pieceSrcForItem(item: Item): string {
-  if (item.originalImageUrl?.startsWith('data:')) return item.originalImageUrl
+  if (isLocalUrl(item.originalImageUrl)) return item.originalImageUrl!
   if (item.source === 'edits') return item.originalImageUrl || item.imageUrl || item.thumbnailUrl || ''
   return proxyImageUrl(item, 'view')
 }
@@ -69,7 +70,7 @@ function pieceSrcForItem(item: Item): string {
 // The on-screen piece uses a light rendition; exports re-fetch the full-resolution original so a
 // 4000–6000px canvas is genuinely sharp rather than an upscale of the preview.
 function pieceHiForItem(item: Item): string | undefined {
-  if (item.originalImageUrl?.startsWith('data:')) return undefined
+  if (isLocalUrl(item.originalImageUrl)) return undefined
   if (item.source === 'edits') return undefined
   return proxyImageUrl(item, 'orig')
 }
@@ -418,7 +419,7 @@ export default function CanvasStudio({ id, onClose }: Props) {
     snapshot()
     const src = pieceSrcForItem(item)
     const img = new Image()
-    if (!src.startsWith('data:')) img.crossOrigin = 'anonymous'
+    if (!isLocalUrl(src)) img.crossOrigin = 'anonymous'
     img.onload = () => {
       const n = doc.pieces.length
       const piece: CanvasPiece = {
@@ -680,7 +681,7 @@ export default function CanvasStudio({ id, onClose }: Props) {
       const load = (url: string) =>
         new Promise<HTMLImageElement | null>((ok) => {
           const im = new Image()
-          if (!url.startsWith('data:')) im.crossOrigin = 'anonymous'
+          if (!isLocalUrl(url)) im.crossOrigin = 'anonymous'
           im.onload = () => ok(im)
           im.onerror = () => ok(null)
           im.src = url
@@ -752,10 +753,16 @@ export default function CanvasStudio({ id, onClose }: Props) {
           url = await uploadEdit(blob, 'image/png')
         } else {
           const small = document.createElement('canvas')
-          small.width = 1200
-          small.height = Math.round(1200 / (doc?.aspect || 1))
+          small.width = 1400
+          small.height = Math.round(1400 / (doc?.aspect || 1))
           small.getContext('2d')!.drawImage(full, 0, 0, small.width, small.height)
-          url = small.toDataURL('image/jpeg', 0.85)
+          // stored in IndexedDB rather than as a data URL, so repeated saves do not exhaust
+          // the origin's localStorage quota
+          const blob: Blob | null = await new Promise((r) => small.toBlob(r, 'image/jpeg', 0.85))
+          if (!blob) throw new Error('render failed')
+          const key = `canvas-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+          if (!(await putBlob(key, blob))) throw new Error('This browser would not store the image (private browsing can block it).')
+          url = IDB_PREFIX + key
         }
         const item: Item = {
           id: `edits:${Date.now()}`,
@@ -783,7 +790,9 @@ export default function CanvasStudio({ id, onClose }: Props) {
           files: [],
         }
         const board = boardStore.create('Edits', 'edits')
-        boardStore.addItems(board.id, [item])
+        boardStore.upsertItem(board.id, item)
+        const failed = boardStore.lastPersistError()
+        if (failed) throw new Error(failed)
         say(user ? 'Saved to your Edits board' : 'Saved to Edits (this browser)')
       } catch (e) {
         say('Save failed: ' + (e as Error).message)
@@ -1009,7 +1018,7 @@ export default function CanvasStudio({ id, onClose }: Props) {
                 onClick={() => {
                   setBusy('Opening…')
                   const im = new Image()
-                  if (!one.src.startsWith('data:')) im.crossOrigin = 'anonymous'
+                  if (!isLocalUrl(one.src)) im.crossOrigin = 'anonymous'
                   im.onload = () => {
                     const c = document.createElement('canvas')
                     c.width = im.naturalWidth
