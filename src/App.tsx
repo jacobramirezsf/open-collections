@@ -13,7 +13,7 @@ import CanvasStudio from './components/CanvasStudio'
 import { openNewCanvas } from './lib/canvas'
 import Intro, { introSeen, markIntroSeen } from './components/Intro'
 import SavePrompt from './components/SavePrompt'
-import UploadEditor from './components/UploadEditor'
+import Studio, { type StudioMode } from './components/Studio'
 import { AccountPanel, BoardsPanel, Filters, PatentFilters, SaveToBoard, StatusPanel, reversedYears } from './components/Panels'
 
 const HINTS: Record<Tool, string[]> = {
@@ -28,7 +28,7 @@ type View =
   // a contact sheet carries its origin so Back restores that view, its selection and its scroll
   | { kind: 'sheet'; title: string; items: Item[]; from: View; fromSelection: string[]; fromScroll: number; fromHash: string }
   | { kind: 'canvas'; id: string }
-  | { kind: 'editor' }
+  | { kind: 'studio'; mode: StudioMode }
 
 function readUrl(): { query: Query; view: View; tool: Tool } {
   const p = new URLSearchParams(location.search)
@@ -37,8 +37,12 @@ function readUrl(): { query: Query; view: View; tool: Tool } {
   const tool: Tool = location.pathname.startsWith('/patents') ? 'patents' : 'museums'
   const query = paramsToQuery(p)
   if (tool === 'patents' && !p.get('n') && !p.get('limit')) query.limit = 100
+  // the studio hub and its two tools; the older #/editor and #/vectorize links still land inside it
+  const st = location.hash.match(/^#\/studio(?:\/(editor|vectorize))?\b/)
   const ed = /^#\/editor\b/.test(location.hash)
-  return { query, view: ed ? { kind: 'editor' } : cv ? { kind: 'canvas', id: cv[1] } : m ? { kind: 'board', id: m[1] } : { kind: 'search' }, tool }
+  const vt = /^#\/vectorize\b/.test(location.hash)
+  const studio: View | null = st ? { kind: 'studio', mode: (st[1] as StudioMode) || 'hub' } : vt ? { kind: 'studio', mode: 'vectorize' } : ed ? { kind: 'studio', mode: 'editor' } : null
+  return { query, view: studio ?? (cv ? { kind: 'canvas', id: cv[1] } : m ? { kind: 'board', id: m[1] } : { kind: 'search' }), tool }
 }
 
 function useBoards(): Board[] {
@@ -350,9 +354,14 @@ export default function App() {
     return new Set(sources.map((s) => s.key).filter((k) => !query.sources.includes(k)))
   }, [query.sources, sources])
 
-  if (view.kind === 'editor')
+  if (view.kind === 'studio')
     return (
-      <UploadEditor
+      <Studio
+        mode={view.mode}
+        onMode={(mode) => {
+          location.hash = mode === 'hub' ? '#/studio' : `#/studio/${mode}`
+          setView({ kind: 'studio', mode })
+        }}
         onClose={() => {
           location.hash = ''
           setView({ kind: 'search' })
@@ -430,6 +439,16 @@ export default function App() {
             }}
           >
             Canvas
+          </button>
+          <button
+            className="btn"
+            title="Edit or vectorize your own images"
+            onClick={() => {
+              location.hash = '#/studio'
+              setView({ kind: 'studio', mode: 'hub' })
+            }}
+          >
+            Studio
           </button>
           <button className="btn about-link" onClick={() => setIntro(true)}>About</button>
           <button className={'btn' + (auth.user ? ' active' : '')} onClick={() => setPanel('account')} title={auth.user ? `Signed in as ${auth.user}` : 'Sign in to sync boards'}>

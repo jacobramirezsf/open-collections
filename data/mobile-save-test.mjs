@@ -1,0 +1,33 @@
+import { chromium, devices } from 'playwright'
+const BASE = process.argv[2] || 'http://localhost:5180'
+const browser = await chromium.launch()
+const ctx = await browser.newContext({ ...devices['iPhone 13'] })
+const p = await ctx.newPage()
+p.on('pageerror', (e) => console.log('   PAGEERROR:', e.message))
+p.on('console', (m) => { if (/quota|exceeded/i.test(m.text())) console.log('   CONSOLE:', m.text().slice(0, 90)) })
+await p.goto(BASE + '/', { waitUntil: 'domcontentloaded' })
+await p.waitForTimeout(1500)
+await p.evaluate(() => localStorage.setItem('open-collections:intro-seen:v1', '1'))
+await p.reload({ waitUntil: 'domcontentloaded' })
+await p.fill('input[type="search"], .searchbar input', 'cat portrait')
+await p.keyboard.press('Enter')
+await p.waitForSelector('.card img.loaded', { timeout: 40000 })
+await p.click('.card >> nth=0')
+await p.waitForSelector('.viewer', { timeout: 20000 })
+await p.click('button:has-text("Edit")')
+await p.waitForTimeout(4000)
+const effects = ['Halftone', 'Dither', 'Riso grain', 'Stipple']
+for (const e of effects) {
+  await p.getByRole('button', { name: e, exact: true }).click()
+  await p.waitForTimeout(3500)
+  await p.locator('.toast').waitFor({ state: 'detached', timeout: 6000 }).catch(() => {})
+  await p.click('.export-actions button:has-text("Save to Edits")')
+  const t = await p.waitForSelector('.toast', { timeout: 90000 }).then((x) => x.textContent()).catch(() => 'NO FEEDBACK')
+  await p.waitForTimeout(1500)
+  const n = await p.evaluate(() => (JSON.parse(localStorage.getItem('open-collections:boards:v1') || '[]').find((b) => b.id === 'edits')?.items || []).length)
+  const kb = await p.evaluate(() => Math.round((localStorage.getItem('open-collections:boards:v1') || '').length / 1024))
+  console.log(`  +${e.padEnd(11)} -> Edits has ${n} item(s), localStorage ${kb}KB, message: "${(t || '').trim().slice(0, 58)}"`)
+  await p.getByRole('button', { name: e, exact: true }).click()
+  await p.waitForTimeout(2000)
+}
+await browser.close()

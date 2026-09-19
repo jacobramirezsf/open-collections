@@ -1,5 +1,6 @@
 // Standalone editor: bring your own image instead of finding one in the collections. Every editing
-// tool and export works the same; nothing here touches boards, saved edits or the canvas.
+// tool and export works the same, and Save to Edits keeps the result on a board (this browser, or
+// the account when signed in). Lives under the Studio hub, which can hand it a file straight away.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Editor from './Editor'
 import type { Item } from '../../shared/types'
@@ -34,7 +35,7 @@ function itemFromDataUrl(url: string, name: string): Item {
   } as Item
 }
 
-export default function UploadEditor({ onClose }: { onClose: () => void }) {
+export default function UploadEditor({ onClose, initialFile }: { onClose: () => void; initialFile?: File | null }) {
   const [item, setItem] = useState<Item | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -78,6 +79,11 @@ export default function UploadEditor({ onClose }: { onClose: () => void }) {
     }
     reader.readAsDataURL(file)
   }, [])
+
+  // a file handed over by the Studio hub opens at once
+  useEffect(() => {
+    if (initialFile) take(initialFile)
+  }, [initialFile, take])
 
   // paste straight from the clipboard
   useEffect(() => {
@@ -130,7 +136,7 @@ export default function UploadEditor({ onClose }: { onClose: () => void }) {
           <span className="faint">or drag one here, or paste from the clipboard</span>
         </div>
         {error && <p style={{ color: 'var(--danger)', fontSize: 13 }}>{error}</p>}
-        <button className="btn link" style={{ marginTop: 18 }} onClick={onClose}>← Back to the collections</button>
+        <button className="btn link" style={{ marginTop: 18 }} onClick={onClose}>← Back to the studio</button>
       </div>
     </div>
   )

@@ -40,7 +40,7 @@ export default function Intro({ onClose, total }: { onClose: () => void; total?:
             </li>
             <li>
               <b>Edit anything.</b> Cut out the background, erase and restore by hand, then stack effects (halftone, riso,
-              CMYK separations, ASCII, embroidery, thread paint) and print it onto real paper stock, deckle-edge sheets or fabric.
+              CMYK separations, ASCII, embroidery) and print it onto real paper stock, deckle-edge sheets or fabric.
             </li>
             <li>
               <b>Collage it.</b> Arrange your edits on a canvas, move and scale them, set a paper or fabric background, export the whole thing.

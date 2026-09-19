@@ -1,5 +1,6 @@
 // POST /api/upload-edit (binary PNG/JPEG body, signed-in users) → { url }
-// Stores user-made edits in the Blob store so the "Edits" board can sync across devices.
+// Stores user-made edits (raster renders, or SVG from the vectorizer) in the Blob store so the
+// "Edits" board can sync across devices.
 import { handler, json, error } from './_lib/http.js'
 import { sessionUser } from './_lib/auth.js'
 
@@ -19,14 +20,14 @@ export default handler(async (req: Request) => {
   // image/* bodies hang the runtime's body handling) with the real mime in x-oc-type.
   const ct = req.headers.get('content-type') || ''
   const type = ct.startsWith('application/octet-stream') ? req.headers.get('x-oc-type') || '' : ct
-  if (!/^image\/(png|jpeg|webp)$/.test(type)) return error('PNG, JPEG or WebP only')
+  if (!/^image\/(png|jpeg|webp|svg\+xml)$/.test(type)) return error('PNG, JPEG, WebP or SVG only')
   const buf = await req.arrayBuffer()
   if (buf.byteLength > MAX_BYTES) return error('Edit is too large to save (14 MB limit).', 413)
   const day = new Date().toISOString().slice(0, 10)
   const used = (memCounts.get(day + username) || 0) + 1
   memCounts.set(day + username, used)
   if (used > MAX_PER_DAY) return error('Daily edit-save limit reached.', 429)
-  const ext = type === 'image/jpeg' ? 'jpg' : type === 'image/webp' ? 'webp' : 'png'
+  const ext = type === 'image/jpeg' ? 'jpg' : type === 'image/webp' ? 'webp' : type === 'image/svg+xml' ? 'svg' : 'png'
   const { put } = await import('@vercel/blob')
   const blob = await put(`edits/${username}/${Date.now()}.${ext}`, buf, { access: 'public', addRandomSuffix: false, contentType: type, token })
   return json({ url: blob.url }, { headers: { 'cache-control': 'no-store' } })

@@ -4,8 +4,12 @@
 // resolution. All pure canvas; transparent pixels (remove.bg cutouts) are respected.
 
 import { type Screen, renderScreen as renderHalftoneScreen } from './halftone'
+import { renderRiso3 } from './riso3'
+import { renderLetterpress } from './letterpress'
+import { renderCyanotype, renderGum, renderLith, renderSaltPrint } from './altphoto'
+import { renderEngraving, renderLinocut, renderScreenprint } from './printfx'
 
-export type EffectKind = 'halftone' | 'dither' | 'riso' | 'stipple' | 'glyphs' | 'hatch' | 'duotone' | 'pixelate' | 'paper' | 'ascii' | 'risoduo' | 'riso4' | 'cmyk' | 'gradient' | 'stitch' | 'threadpaint'
+export type EffectKind = 'halftone' | 'dither' | 'riso' | 'stipple' | 'glyphs' | 'hatch' | 'duotone' | 'pixelate' | 'paper' | 'ascii' | 'risoduo' | 'riso4' | 'riso3' | 'letterpress' | 'saltprint' | 'cyanotype' | 'lith' | 'gum' | 'screenprint' | 'linocut' | 'engraving' | 'cmyk' | 'gradient' | 'stitch'
 
 export interface TextureParams {
   size: number // cell/block/spacing in preview px
@@ -147,6 +151,121 @@ export const EFFECTS: EffectDef[] = [
     defaults: { amount: 0.5, size: 3, paper: '#f5f2e9', ink: '#151515', ink2: '#0078bf', ink3: '#ff48b0', ink4: '#ffe800' },
   },
   {
+    // Riso v3 lives in riso3.ts: real ink separation, blue-noise stencil grain, uneven inking,
+    // per-pass misregistration. The earlier riso effects above are untouched.
+    key: 'riso3',
+    label: 'Riso v3',
+    controls: [
+      { k: 'size', label: 'Grain size', min: 1, max: 8, step: 0.5 },
+      { k: 'amount', label: 'Texture', min: 0, max: 1, step: 0.05 },
+      { k: 'levels', label: 'Inks', min: 1, max: 4, step: 1 },
+      { k: 'angle', label: 'Misregistration', min: 0, max: 12, step: 0.5 },
+    ],
+    colors: ['ink', 'ink2', 'ink3', 'ink4', 'paper'],
+    defaults: { size: 2, amount: 0.5, levels: 4, angle: 3, ink: '#151515', ink2: '#0078bf', ink3: '#ff48b0', ink4: '#ffe800', paper: '#f3f1e8' },
+  },
+  {
+    // Letterpress lives in letterpress.ts: impression with lit and shadowed walls, ink squash,
+    // salty surface coverage.
+    key: 'letterpress',
+    label: 'Letterpress',
+    controls: [
+      { k: 'size', label: 'Impression depth', min: 1, max: 12, step: 0.5 },
+      { k: 'amount', label: 'Ink coverage', min: 0, max: 1, step: 0.05 },
+      { k: 'levels', label: 'Ink squash', min: 0, max: 10, step: 1 },
+      { k: 'angle', label: 'Light angle', min: 0, max: 360, step: 5 },
+    ],
+    colors: ['ink', 'paper'],
+    invert: true,
+    defaults: { size: 4, amount: 0.7, levels: 5, angle: 315, ink: '#1c1a17', paper: '#f4efe4' },
+  },
+  // --- photographic processes (src/lib/altphoto.ts) ---
+  {
+    key: 'saltprint',
+    label: 'Salt print',
+    controls: [
+      { k: 'size', label: 'Softness', min: 0, max: 8, step: 0.5 },
+      { k: 'amount', label: 'Exposure', min: 0, max: 1, step: 0.05 },
+      { k: 'levels', label: 'Paper fibre', min: 0, max: 10, step: 1 },
+      { k: 'angle', label: 'Brushed edge', min: 0, max: 10, step: 0.5 },
+    ],
+    colors: ['ink', 'paper'],
+    defaults: { size: 2, amount: 0.6, levels: 5, angle: 5, ink: '#4a2c1a', paper: '#e9dcc3' },
+  },
+  {
+    key: 'cyanotype',
+    label: 'Cyanotype',
+    controls: [
+      { k: 'size', label: 'Brushed edge', min: 0, max: 10, step: 0.5 },
+      { k: 'amount', label: 'Exposure', min: 0, max: 1, step: 0.05 },
+      { k: 'levels', label: 'Tea toning', min: 0, max: 10, step: 1 },
+      { k: 'angle', label: 'Paper texture', min: 0, max: 10, step: 0.5 },
+    ],
+    colors: ['paper'],
+    defaults: { size: 5, amount: 0.6, levels: 0, angle: 4, paper: '#efe9dc' },
+  },
+  {
+    key: 'lith',
+    label: 'Lith print',
+    controls: [
+      { k: 'size', label: 'Grain', min: 1, max: 8, step: 0.5 },
+      { k: 'amount', label: 'Development', min: 0, max: 1, step: 0.05 },
+      { k: 'levels', label: 'Colour split', min: 0, max: 10, step: 1 },
+      { k: 'angle', label: 'Snatch point', min: 0, max: 10, step: 0.5 },
+    ],
+    colors: ['ink', 'ink2', 'paper'],
+    defaults: { size: 3, amount: 0.6, levels: 6, angle: 4, ink: '#26201a', ink2: '#e6b9a0', paper: '#f2eadb' },
+  },
+  {
+    key: 'gum',
+    label: 'Gum bichromate',
+    controls: [
+      { k: 'size', label: 'Paper texture', min: 1, max: 10, step: 0.5 },
+      { k: 'amount', label: 'Contrast', min: 0, max: 1, step: 0.05 },
+      { k: 'levels', label: 'Layers (1 mono · 3 tri-colour)', min: 1, max: 3, step: 1 },
+      { k: 'angle', label: 'Misregistration', min: 0, max: 10, step: 0.5 },
+    ],
+    colors: ['ink', 'ink2', 'ink3', 'paper'],
+    defaults: { size: 5, amount: 0.55, levels: 3, angle: 3, ink: '#245a9c', ink2: '#c43a63', ink3: '#d9a83a', paper: '#f0e8d8' },
+  },
+  // --- more print processes (src/lib/printfx.ts) ---
+  {
+    key: 'screenprint',
+    label: 'Screenprint',
+    controls: [
+      { k: 'size', label: 'Mesh', min: 2, max: 10, step: 0.5 },
+      { k: 'amount', label: 'Ink coverage', min: 0, max: 1, step: 0.05 },
+      { k: 'levels', label: 'Inks', min: 1, max: 4, step: 1 },
+      { k: 'angle', label: 'Misregistration', min: 0, max: 8, step: 0.5 },
+    ],
+    colors: ['ink', 'ink2', 'ink3', 'ink4', 'paper'],
+    defaults: { size: 3, amount: 0.8, levels: 4, angle: 2, ink: '#1d1d1f', ink2: '#e8412c', ink3: '#2a63b8', ink4: '#f2c230', paper: '#f4f0e6' },
+  },
+  {
+    key: 'linocut',
+    label: 'Linocut',
+    controls: [
+      { k: 'size', label: 'Gouge width', min: 2, max: 12, step: 0.5 },
+      { k: 'amount', label: 'Ink', min: 0, max: 1, step: 0.05 },
+      { k: 'levels', label: 'Carving detail', min: 1, max: 5, step: 1 },
+      { k: 'angle', label: 'Gouge angle', min: 0, max: 180, step: 5 },
+    ],
+    colors: ['ink', 'paper'],
+    defaults: { size: 7, amount: 0.55, levels: 4, angle: 30, ink: '#1a1815', paper: '#f3efe6' },
+  },
+  {
+    key: 'engraving',
+    label: 'Engraving',
+    controls: [
+      { k: 'size', label: 'Line spacing', min: 3, max: 12, step: 0.5 },
+      { k: 'amount', label: 'Line weight', min: 0.3, max: 1, step: 0.05 },
+      { k: 'levels', label: 'Line sets (1 · 2 crossed)', min: 1, max: 2, step: 1 },
+      { k: 'angle', label: 'Direction', min: 0, max: 180, step: 5 },
+    ],
+    colors: ['ink', 'paper'],
+    defaults: { size: 8, amount: 0.9, levels: 2, angle: 20, ink: '#1f2a33', paper: '#f5f2ea' },
+  },
+  {
     key: 'stitch',
     label: 'Embroidery',
     controls: [
@@ -155,17 +274,6 @@ export const EFFECTS: EffectDef[] = [
     ],
     colors: ['paper'],
     defaults: { size: 9, levels: 6, paper: '#f2eee4' },
-  },
-  {
-    key: 'threadpaint',
-    label: 'Thread paint',
-    controls: [
-      { k: 'size', label: 'Stitch size', min: 4, max: 14, step: 1 },
-      { k: 'levels', label: 'Thread colors', min: 2, max: 12, step: 1 },
-      { k: 'amount', label: 'Density', min: 0.4, max: 1, step: 0.05 },
-    ],
-    colors: ['paper'],
-    defaults: { size: 6, levels: 8, amount: 0.85, paper: '#f2eee4' },
   },
   {
     key: 'cmyk',
@@ -179,6 +287,9 @@ export const EFFECTS: EffectDef[] = [
   },
 ]
 // ('gradient' and 'paper' grain renderers remain below but are retired from the chip rack)
+
+// effects whose defaults include the colours that make the look (applied when the chip is added)
+export const PALETTE_EFFECTS = new Set<EffectKind>(['riso4', 'riso3', 'saltprint', 'cyanotype', 'lith', 'gum', 'screenprint', 'linocut', 'engraving'])
 
 export function effectDef(key: EffectKind): EffectDef {
   return EFFECTS.find((e) => e.key === key)!
@@ -287,10 +398,18 @@ export function applyTexture(effect: EffectKind, src: HTMLCanvasElement, p: Text
   if (effect === 'ascii') return renderAscii(work, p, unit)
   if (effect === 'risoduo') return renderRisoDuo(work, p, unit)
   if (effect === 'riso4') return renderRiso4(work, p, unit)
+  if (effect === 'riso3') return renderRiso3(work, p, unit)
+  if (effect === 'letterpress') return renderLetterpress(work, p, unit)
+  if (effect === 'saltprint') return renderSaltPrint(work, p, unit)
+  if (effect === 'cyanotype') return renderCyanotype(work, p, unit)
+  if (effect === 'lith') return renderLith(work, p, unit)
+  if (effect === 'gum') return renderGum(work, p, unit)
+  if (effect === 'screenprint') return renderScreenprint(work, p, unit)
+  if (effect === 'linocut') return renderLinocut(work, p, unit)
+  if (effect === 'engraving') return renderEngraving(work, p, unit)
   if (effect === 'cmyk') return renderCmyk(work, p, unit)
   if (effect === 'gradient') return renderGradient(work, p)
   if (effect === 'stitch') return renderStitch(work, p, unit)
-  if (effect === 'threadpaint') return renderThreadPaint(work, p, unit)
 
   if (effect === 'pixelate') {
     const block = Math.max(2, Math.round(unit))
@@ -797,7 +916,7 @@ function renderRiso4(work: HTMLCanvasElement, p: TextureParams, offsetPx: number
 // ---------------------------------------------------------------------------
 // Embroidery: photoreal cross-stitch — the image quantized to a small thread palette, one X of
 // glossy thread per cell on an aida-style fabric ground. (A lean cousin of Bayside's Stitch Lab
-// photoreal tool; the full thread-paint/DST version lives there.)
+// photoreal tool; the full DST version lives there.)
 function quantizePalette(d: Uint8ClampedArray, n: number, k: number, rnd: () => number): { palette: [number, number, number][]; assign: (i: number) => number } {
   // k-means on a sample
   const samples: [number, number, number][] = []
@@ -942,75 +1061,6 @@ function renderStitch(work: HTMLCanvasElement, p: TextureParams, cellPx: number)
       // two glossy arms, top arm marginally brighter (it catches the light)
       threadStroke(ctx, cx - arm + jitter(), cy - arm + jitter(), cx + arm + jitter(), cy + arm + jitter(), cell * 0.36, r * 0.92, g * 0.92, b * 0.92, a)
       threadStroke(ctx, cx + arm + jitter(), cy - arm + jitter(), cx - arm + jitter(), cy + arm + jitter(), cell * 0.36, r, g, b, a)
-    }
-  }
-  return canvas
-}
-
-// ---------------------------------------------------------------------------
-// Thread paint (photoreal-style): short glossy strokes following the image's contours, in a
-// quantized thread palette, sewn darkest-first — the look of the Lab's photoreal thread paint.
-function renderThreadPaint(work: HTMLCanvasElement, p: TextureParams, cellPx: number): HTMLCanvasElement {
-  const w = work.width
-  const h = work.height
-  const cell = Math.max(3, cellPx)
-  const gw = Math.ceil(w / cell)
-  const gh = Math.ceil(h / cell)
-  const small = document.createElement('canvas')
-  small.width = gw
-  small.height = gh
-  const sctx = small.getContext('2d', { willReadFrequently: true })!
-  sctx.drawImage(work, 0, 0, gw, gh)
-  const sd = sctx.getImageData(0, 0, gw, gh).data
-  const rnd = mulberry32(191919)
-  const threads = Math.max(2, Math.min(12, p.levels || 8))
-  const { palette, assign } = quantizePalette(sd, gw * gh, threads, rnd)
-  // luminance + sobel direction on the small grid
-  const lum = new Float32Array(gw * gh)
-  for (let i = 0; i < gw * gh; i++) lum[i] = (0.299 * sd[i * 4] + 0.587 * sd[i * 4 + 1] + 0.114 * sd[i * 4 + 2]) / 255
-  const angleOf = (x: number, y: number) => {
-    const at = (xx: number, yy: number) => lum[Math.min(gh - 1, Math.max(0, yy)) * gw + Math.min(gw - 1, Math.max(0, xx))]
-    const gx = at(x + 1, y - 1) + 2 * at(x + 1, y) + at(x + 1, y + 1) - at(x - 1, y - 1) - 2 * at(x - 1, y) - at(x - 1, y + 1)
-    const gy = at(x - 1, y + 1) + 2 * at(x, y + 1) + at(x + 1, y + 1) - at(x - 1, y - 1) - 2 * at(x, y - 1) - at(x + 1, y - 1)
-    if (Math.abs(gx) + Math.abs(gy) < 0.03) return null // flat area
-    return Math.atan2(gy, gx) + Math.PI / 2 // along the contour
-  }
-  const { canvas, ctx } = makeOut(w, h, p.paper)
-  // group cells per thread, sew darkest first
-  const lumaOf = (c: [number, number, number]) => 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]
-  const order = palette.map((_, i) => i).sort((a, b) => lumaOf(palette[a]) - lumaOf(palette[b]))
-  const cellsByThread: number[][] = palette.map(() => [])
-  for (let i = 0; i < gw * gh; i++) {
-    if (sd[i * 4 + 3] < 60) continue
-    cellsByThread[assign(i)].push(i)
-  }
-  const strokeLen = cell * 1.9
-  const width = cell * 0.62
-  for (const ti of order) {
-    const [r, g, b] = threadColor(palette[ti], 1.2, 1.04)
-    for (const i of cellsByThread[ti]) {
-      const gx = i % gw
-      const gy = (i / gw) | 0
-      const a = sd[i * 4 + 3] / 255
-      const n = p.amount > rnd() ? 2 : 1
-      for (let k = 0; k < n; k++) {
-        const ang = angleOf(gx, gy) ?? rnd() * Math.PI
-        const jx = (gx + 0.5 + (rnd() - 0.5) * 0.9) * cell
-        const jy = (gy + 0.5 + (rnd() - 0.5) * 0.9) * cell
-        const L = strokeLen * (0.75 + rnd() * 0.5)
-        const dx = (Math.cos(ang) * L) / 2
-        const dy = (Math.sin(ang) * L) / 2
-        // shadow then glossy stroke
-        ctx.strokeStyle = `rgba(25,18,12,${0.18 * a})`
-        ctx.lineWidth = width * 1.15
-        ctx.lineCap = 'round'
-        ctx.beginPath()
-        ctx.moveTo(jx - dx + width * 0.12, jy - dy + width * 0.18)
-        ctx.lineTo(jx + dx + width * 0.12, jy + dy + width * 0.18)
-        ctx.stroke()
-        const v = 0.9 + rnd() * 0.16 // slight per-stroke thread variance
-        threadStroke(ctx, jx - dx, jy - dy, jx + dx, jy + dy, width, r * v, g * v, b * v, Math.min(1, a * 1.25))
-      }
     }
   }
   return canvas

@@ -1,0 +1,46 @@
+import { chromium, devices } from 'playwright'
+const BASE = process.argv[2] || 'http://localhost:5180'
+const browser = await chromium.launch()
+const ctx = await browser.newContext({ ...devices['iPhone 13'] })
+const p = await ctx.newPage()
+p.on('pageerror', (e) => console.log('   PAGEERROR:', e.message))
+let pass = 0, fail = 0
+const check = (n, ok, d = '') => { ok ? pass++ : fail++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${n}${d ? ' — ' + d : ''}`) }
+await p.goto(BASE + '/', { waitUntil: 'domcontentloaded' })
+await p.waitForTimeout(1200)
+await p.evaluate(() => {
+  localStorage.setItem('open-collections:intro-seen:v1', '1')
+  const c = document.createElement('canvas'); c.width = 260; c.height = 260
+  const x = c.getContext('2d'); x.fillStyle = '#48a'; x.fillRect(0, 0, 260, 260)
+  const u = c.toDataURL('image/png')
+  const mk = (n) => ({ id: `edits:${n}`, source: 'edits', sourceName: 'My edits', sourceUrl: '', title: 'Saved ' + n, creator: '', dateDisplay: '', yearStart: null, yearEnd: null, objectType: 'Edit', medium: '', culture: null, place: null, publicDomain: null, rightsLabel: '', licenseUrl: null, thumbnailUrl: u, imageUrl: u, originalImageUrl: u, width: null, height: null, contentType: 'image', files: [] })
+  localStorage.setItem('open-collections:boards:v1', JSON.stringify([{ id: 'edits', name: 'Edits', createdAt: 1, updatedAt: 1, items: [mk(1), mk(2), mk(3)] }]))
+})
+await p.goto(BASE + '/#/board/edits', { waitUntil: 'domcontentloaded' })
+await p.reload({ waitUntil: 'domcontentloaded' })
+await p.waitForTimeout(3000)
+check('mobile: board opens', (await p.locator('.card').count()) === 3)
+await p.click('button:has-text("Select all")')
+await p.waitForTimeout(600)
+await p.click('.batchbar button:has-text("Contact sheet")')
+await p.waitForTimeout(1500)
+check('mobile: sheet URL is consistent', (await p.evaluate(() => location.hash)) === '#/sheet')
+await p.click('button:has-text("Back")')
+await p.waitForTimeout(2000)
+const st = await p.evaluate(() => ({ hash: location.hash, cards: document.querySelectorAll('.card').length, sel: !!document.querySelector('.batchbar') }))
+check('mobile: Back restores board + selection', st.hash === '#/board/edits' && st.cards === 3 && st.sel, JSON.stringify(st))
+// browser Back out of a sheet
+await p.click('.batchbar button:has-text("Contact sheet")')
+await p.waitForTimeout(1200)
+await p.goBack()
+await p.waitForTimeout(2000)
+const bb = await p.evaluate(() => ({ hash: location.hash, cards: document.querySelectorAll('.card').length }))
+check('mobile: browser Back leaves the sheet correctly', bb.hash === '#/board/edits' && bb.cards === 3, JSON.stringify(bb))
+// reversed dates at mobile width
+await p.goto(BASE + '/?q=cat&from=1990&to=1900', { waitUntil: 'domcontentloaded' })
+await p.waitForTimeout(5000)
+check('mobile: reversed range explained', (await p.locator('.year-warning').count()) > 0)
+const w = await p.locator('.year-warning').boundingBox()
+check('mobile: warning fits the screen', !!w && w.x >= -1 && w.x + w.width <= p.viewportSize().width + 1, w ? `${Math.round(w.width)}px wide` : 'n/a')
+console.log(`\n${pass} passed, ${fail} failed`)
+await browser.close()

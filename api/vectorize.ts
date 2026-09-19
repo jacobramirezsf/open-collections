@@ -1,13 +1,18 @@
-// POST /api/vectorize { id } or { image: dataURL } → { svg, sandbox } via QuiverAI's
-// image-to-SVG API (https://docs.quiver.ai). The key stays server-side (QUIVERAI_API_KEY);
-// generations spend paid credits, so a small per-IP daily cap applies (same pattern as removebg).
+// POST /api/vectorize { id } or { image: dataURL } [, model, stream] → { svg, model, sandbox } via
+// QuiverAI's image-to-SVG API (https://docs.quiver.ai). With stream: true the upstream server-sent
+// events pass straight through (text/event-stream: `event: draft|content|error`, `data: {svg,…}`,
+// then `data: [DONE]`) so the client can draw the vector as it is being made. The key stays
+// server-side (QUIVERAI_API_KEY); generations spend paid credits, so a small per-IP daily cap
+// applies (same pattern as removebg).
 import { handler, error, json, params } from './_lib/http.js'
 import { getItemsAcrossShards } from './_lib/router.js'
 
 export const config = { maxDuration: 120 }
 
 const DAILY_CAP = Number(process.env.QUIVER_DAILY_CAP || 20)
-const MODEL = process.env.QUIVER_MODEL || 'arrow-1.1'
+const DEFAULT_MODEL = process.env.QUIVER_MODEL || 'arrow-1.1'
+// models the vectorize endpoint accepts (docs.quiver.ai/developers/models); the client may pick one
+const MODELS = new Set(['arrow-1.1', 'arrow-2', 'arrow-2-telos'])
 const memCounts = new Map<string, number>()
 
 function day(): string {
@@ -65,6 +70,9 @@ export default handler(async (req: Request) => {
     return error('id or image required')
   }
 
+  const model = typeof body?.model === 'string' && MODELS.has(body.model) ? body.model : DEFAULT_MODEL
+  const stream = body?.stream === true
+
   const ip = (req.headers.get('x-forwarded-for') || 'local').split(',')[0].trim()
   const q = await quota(ip)
   if (!q.ok) return error(`Daily vectorization limit reached (${DAILY_CAP}/day). Try again tomorrow.`, 429)
@@ -72,8 +80,20 @@ export default handler(async (req: Request) => {
   const res = await fetch('https://api.quiver.ai/v1/svgs/vectorizations', {
     method: 'POST',
     headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ model: MODEL, image, target_size: 1024, stream: false }),
+    body: JSON.stringify({ model, image, target_size: 1024, stream }),
   })
+  if (stream && res.ok && res.body && (res.headers.get('content-type') || '').includes('text/event-stream')) {
+    return new Response(res.body, {
+      status: 200,
+      headers: {
+        'content-type': 'text/event-stream; charset=utf-8',
+        'cache-control': 'no-store, no-transform',
+        'x-accel-buffering': 'no',
+        'x-quiver-model': model,
+        'x-quiver-environment': res.headers.get('x-quiver-environment') || 'live',
+      },
+    })
+  }
   let payload: any = null
   try {
     payload = await res.json()
@@ -87,7 +107,7 @@ export default handler(async (req: Request) => {
   const svg = payload?.data?.[0]?.svg
   if (!svg || typeof svg !== 'string') return error('Vectorization failed.', 502)
   return json(
-    { svg, sandbox: svg.includes('data-quiver-sandbox') || res.headers.get('x-quiver-environment') === 'test', credits: payload?.credits ?? null },
+    { svg, model, sandbox: svg.includes('data-quiver-sandbox') || res.headers.get('x-quiver-environment') === 'test', credits: payload?.credits ?? null },
     { headers: { 'cache-control': 'no-store' } },
   )
 })

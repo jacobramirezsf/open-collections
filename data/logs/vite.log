@@ -3,8 +3,63 @@
 > vite
 
 
-  VITE v7.3.6  ready in 168 ms
+  VITE v7.3.6  ready in 166 ms
 
   ➜  Local:   http://localhost:5180/
   ➜  Network: use --host to expose
-11:07:14 AM [vite] (client) hmr update /src/components/Editor.tsx
+3:57:26 PM [vite] (client) hmr update /src/App.tsx, /src/components/CanvasStudio.tsx, /src/components/Panels.tsx, /src/components/Editor.tsx
+8:58:28 PM [vite] (client) hmr update /src/App.tsx, /src/components/CanvasStudio.tsx, /src/components/Panels.tsx, /src/components/Editor.tsx
+9:00:28 PM [vite] (client) hmr update /src/styles.css
+9:00:52 PM [vite] (client) hmr update /src/components/Editor.tsx
+9:02:24 PM [vite] (client) hmr update /src/components/Viewer.tsx
+9:02:37 PM [vite] (client) hmr update /src/components/Viewer.tsx
+7:46:55 PM [vite] (client) hmr update /src/App.tsx
+7:46:55 PM [vite] (client) hmr update /src/styles.css
+7:53:32 PM [vite] (client) hmr update /src/components/VectorizeTool.tsx
+7:53:59 PM [vite] (client) hmr update /src/styles.css
+7:58:00 PM [vite] (client) hmr update /src/components/VectorizeTool.tsx
+7:58:00 PM [vite] (client) hmr update /src/styles.css
+7:59:29 PM [vite] (client) hmr update /src/components/VectorizeTool.tsx
+8:02:55 PM [vite] (client) hmr update /src/components/VectorizeTool.tsx
+8:02:55 PM [vite] (client) hmr update /src/styles.css
+8:03:43 PM [vite] (client) ✨ new dependencies optimized: paper
+8:03:43 PM [vite] (client) ✨ optimized dependencies changed. reloading
+8:05:02 PM [vite] (client) hmr update /src/components/VectorizeTool.tsx
+8:05:55 PM [vite] (client) hmr update /src/components/VectorizeTool.tsx
+8:06:48 PM [vite] (client) hmr update /src/components/VectorizeTool.tsx
+8:07:43 PM [vite] (client) hmr update /src/components/VectorizeTool.tsx
+10:08:25 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx, /src/components/Editor.tsx
+10:08:25 PM [vite] (client) hmr update /src/components/Editor.tsx
+10:08:25 PM [vite] (client) hmr update /src/components/UploadEditor.tsx
+10:08:44 PM [vite] (client) hmr update /src/components/VectorizeTool.tsx
+10:08:45 PM [vite] (client) hmr invalidate /src/components/VectorizeTool.tsx Could not Fast Refresh ("MODELS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+10:08:45 PM [vite] (client) hmr update /src/App.tsx
+10:09:37 PM [vite] (client) hmr update /src/App.tsx
+10:09:37 PM [vite] (client) hmr update /src/styles.css
+10:11:09 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx, /src/components/Editor.tsx
+10:14:03 PM [vite] (client) hmr update /src/App.tsx, /src/components/CanvasStudio.tsx, /src/components/Panels.tsx, /src/components/Editor.tsx, /src/components/VectorizeTool.tsx, /src/components/Studio.tsx
+10:14:03 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx, /src/components/Editor.tsx
+10:14:03 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx, /src/components/Editor.tsx
+10:14:03 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx, /src/components/Editor.tsx
+10:14:03 PM [vite] (client) hmr invalidate /src/components/Panels.tsx Could not Fast Refresh ("itemsLabel" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+10:14:03 PM [vite] (client) hmr update /src/App.tsx, /src/components/Intro.tsx, /src/components/Viewer.tsx, /src/components/CanvasStudio.tsx, /src/components/Editor.tsx, /src/components/VectorizeTool.tsx, /src/components/Studio.tsx
+10:14:03 PM [vite] (client) hmr invalidate /src/components/VectorizeTool.tsx Could not Fast Refresh ("MODELS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+10:14:03 PM [vite] (client) hmr update /src/components/Studio.tsx
+10:26:22 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx, /src/components/Editor.tsx
+10:30:57 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx, /src/components/Editor.tsx
+10:30:57 PM [vite] (client) hmr update /src/components/Editor.tsx
+10:32:53 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx, /src/components/Editor.tsx
+10:32:53 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx, /src/components/Editor.tsx
+10:42:35 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx, /src/components/Editor.tsx
+10:42:35 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx, /src/components/Editor.tsx
+10:43:19 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx, /src/components/Editor.tsx
+10:43:19 PM [vite] (client) hmr update /src/components/Intro.tsx
+10:43:19 PM [vite] (client) hmr invalidate /src/components/Intro.tsx Could not Fast Refresh ("introSeen" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+10:43:19 PM [vite] (client) hmr update /src/App.tsx
+10:44:39 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx, /src/components/Editor.tsx
+10:46:05 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx, /src/components/Editor.tsx
+10:46:15 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx, /src/components/Editor.tsx
+10:47:14 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx, /src/components/Editor.tsx
+10:47:14 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx, /src/components/Editor.tsx
+10:53:03 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx, /src/components/Editor.tsx
+10:53:03 PM [vite] (client) hmr update /src/components/CanvasStudio.tsx, /src/components/Editor.tsx

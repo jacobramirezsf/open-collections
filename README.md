@@ -168,12 +168,47 @@ riso grain, riso 2-color (misregistered two-ink separation), stipple, glyphs, AS
 export), crosshatch, duotone/cyanotype, CMYK halftone (with 4× vector SVG plate export at classic
 screen angles), pixelate, gradient (photo→mesh gradient), paper grain — all classic
 print techniques implemented scale-aware in `src/lib/textures.ts` (client-side, transparency-aware,
-identical at preview and print resolution), and **AI vectorization** (QuiverAI image→SVG,
-`QUIVERAI_API_KEY` from platform.quiver.ai/api-keys, per-IP daily cap, `QUIVER_MODEL` defaults to
-arrow-1.1 — works on the original or on the background-removed cutout). The full-resolution image is loaded
+identical at preview and print resolution), **Riso v3** (`src/lib/riso3.ts`: the picture is
+separated into up to four spot inks by a least-squares fit cached in a LUT, screened with a
+blue-noise stencil grain, printed lightest ink first with translucent multiply, slow density drift
+and feed streaks, and per-pass misregistration with a touch of rotation; the older riso effects are
+unchanged), **Letterpress** (`src/lib/letterpress.ts`: the printed area is pressed into the sheet
+with lit and shadowed walls from the light angle, ink squash gives a dense rim and a faint halo
+while large solids go starved and salty, coverage runs from dry to heavy), and four
+**photographic processes** (`src/lib/altphoto.ts`, each built from how the real object forms:
+Salt print — the calotype's soft paper negative on salted
+paper, purplish-brown, fibre in the image, brushed borders; Cyanotype — Prussian blue with brushed
+coating, bronzing when overexposed, tea toning; Lith print — infectious development, gritty shadows, creamy
+split-toned highlights; Gum bichromate — thin watercolour pigment layers on rough paper, tri-colour
+with misregistration), and three more **print processes** (`src/lib/printfx.ts`: Screenprint —
+flat opaque spot inks printed lightest first, mesh weave, squeegee pull, dot gain, misregistration;
+Linocut — solid block, cut-away paper, mid-tones as hand-gouged parallel cuts that widen with tone,
+with wobble and chatter; Engraving — banknote-style lines that swell with darkness and bend around
+the forms, crossed in the darks), and **AI vectorization** (QuiverAI image→SVG,
+`QUIVERAI_API_KEY` from platform.quiver.ai/api-keys, per-IP daily cap, `QUIVER_MODEL` sets the default
+model, arrow-1.1 — works on the original or on the background-removed cutout). The full-resolution image is loaded
 through the same-origin proxy, optionally sent through remove.bg (server-side, `/api/removebg`,
 needs `REMOVE_BG_KEY`), then screened client-side (rotated dot/line/square grid, adjustable cell,
 angle, gain, ink/paper colours, transparency-aware). The preview runs at ≤1800px; exports re-render
 the identical screen from the full-res source as a **PNG up to ~8000px** (size picker: source / 1.5× / 2×,
 64 MP ceiling) or as a **vector SVG** (each dot a real shape — resolution-independent, ready for
 screenprint separations in Illustrator/Inkscape). TIFF-only originals fall back to the largest JPEG rendition.
+
+**Studio (`#/studio`)** is the front door for your own images: two upload tiles (choose, drag or
+paste) open the editor or the vectorizer, with Boards and Sign in on the same page. Both tools
+save to the same boards as the rest of the site — in this browser (IndexedDB) until you sign in,
+then on the account via `/api/upload-edit` (PNG/JPEG/WebP, and SVG for vectors). The older
+`#/editor` and `#/vectorize` links land inside it. **`#/studio/editor`** opens the whole editor on
+an uploaded file (Save to Edits works for uploads too), and **`#/studio/vectorize`** is just the
+image→SVG step — crop or erase first (the editor's own tools), pick a
+QuiverAI model (Arrow 1.1, Arrow 2 or Arrow 2 Telos; the choice is remembered), watch the vector
+being drawn (the request streams, `stream: true`, and each draft is closed off and shown as it
+arrives), compare original and vector side by side, download or copy the SVG. **Only visible
+shapes** (on by default) flattens the result: Arrow 2 / Telos draw every object as a complete
+shape and stack them, so a ski keeps running under the leg that covers it; the flattening walks
+the paint order top-down and subtracts what is painted above from each shape (`src/lib/flattenSvg.ts`,
+paper.js boolean ops, loaded on first use), giving non-overlapping regions that render the same
+and open flat in Illustrator or on a plotter. Opaque fills knock out what is below; translucent
+fills, gradients with alpha, stroke-only lines and clipping groups are left as drawn. Both pages
+send the image to `/api/vectorize` as a ≤1024px PNG; the endpoint allowlists the model ids, falls
+back to `QUIVER_MODEL`, and passes QuiverAI's server-sent events straight through when streaming.

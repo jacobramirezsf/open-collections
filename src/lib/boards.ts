@@ -154,6 +154,14 @@ export function createLocalBoardStore(): BoardStore {
     boards = withFavorites(boards) // keeps Favorites pinned first + new identity for React
     save(boards)
     listeners.forEach((l) => l())
+    // an item saved a moment ago holds a bare `idb:` reference; resolve it now rather than on the
+    // next reload, so the thumbnail shows straight away (only unresolved refs cost anything)
+    void hydrate(boards).then((touched) => {
+      if (touched) {
+        boards = boards.slice()
+        listeners.forEach((l) => l())
+      }
+    })
   }
   window.addEventListener('storage', (e) => {
     if (e.key === KEY) {

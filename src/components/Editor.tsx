@@ -12,7 +12,7 @@ import { IDB_PREFIX, putBlob } from '../lib/blobstore'
 import { onAuthChange } from '../lib/account'
 import { computeScreen, renderScreen, screenToSvg, type HalftoneParams } from '../lib/halftone'
 import {
-  CMYK_CHANNELS, EFFECTS, INK_PRESETS, PAPER_TEXTURES, TEXTURE_DEFAULTS, applyPaperTexture, applyTexture, asciiGrid,
+  CMYK_CHANNELS, EFFECTS, INK_PRESETS, PALETTE_EFFECTS, PAPER_TEXTURES, TEXTURE_DEFAULTS, applyPaperTexture, applyTexture, asciiGrid,
   computeCmykScreens, effectDef, type EffectKind, type PaperTexture, type TextureParams,
 } from '../lib/textures'
 import { PAPER_SHEETS, paperUrl, sheetDef } from '../lib/papers'
@@ -24,7 +24,7 @@ import { useBodyLock } from './Panels'
 interface Props {
   item: Item
   onClose: () => void
-  standalone?: boolean // an uploaded image: export only, no boards or saved edits
+  standalone?: boolean // an uploaded image: no collection record behind it (no cutout banking); saves go to Edits like any other
 }
 
 const HT_DEFAULTS: HalftoneParams = { on: true, cell: 8, angle: 22, shape: 'dot', gain: 1.15, ink: '#141414', paper: '#f3f1ec', invert: false }
@@ -289,7 +289,8 @@ export default function Editor({ item, onClose, standalone }: Props) {
       }
       if (k !== 'halftone') {
         const d = effectDef(k).defaults
-        const keep = k === 'riso4' ? ['paper'] : ['ink', 'ink2', 'ink3', 'ink4', 'paper']
+        // riso keeps your paper; the photographic processes bring their own paper and pigments
+        const keep = k === 'riso4' || k === 'riso3' ? ['paper'] : PALETTE_EFFECTS.has(k) ? [] : ['ink', 'ink2', 'ink3', 'ink4', 'paper']
         setTex((t) => ({ ...t, ...Object.fromEntries(Object.entries(d).filter(([key]) => !keep.includes(key))) }))
       }
       const next = [...s, k]
@@ -827,7 +828,7 @@ export default function Editor({ item, onClose, standalone }: Props) {
                   <input type="color" value={tex.ink4} onChange={(e) => setTex((t) => ({ ...t, ink4: e.target.value }))} />
                 </div>
               )}
-              {stack.includes('riso4') && (
+              {(stack.includes('riso4') || stack.includes('riso3')) && (
                 <div>
                   <span className="label">Ink presets</span>
                   <div className="row" style={{ gap: 4 }}>
@@ -979,9 +980,7 @@ export default function Editor({ item, onClose, standalone }: Props) {
           </div>
           <div className="actions export-actions">
             <button className="btn primary" onClick={exportPng} disabled={!full || !!busy}>{isTouch() ? 'Save image' : 'Download image'}</button>
-            {!standalone && (
-              <button className="btn" onClick={saveEdit} disabled={!full || !!busy} title="Keeps this edit on your Edits board with a link to the original work">Save to Edits</button>
-            )}
+            <button className="btn" onClick={saveEdit} disabled={!full || !!busy} title={standalone ? 'Keeps this edit on your Edits board (this browser, or your account when signed in)' : 'Keeps this edit on your Edits board with a link to the original work'}>Save to Edits</button>
             <button className="btn" onClick={exportSvg} disabled={!full || !!busy || !svgOk} title={svgOk ? 'Resolution-independent halftone for screenprint separations' : 'Vector SVG export is available when Halftone is the only texture'}>
               SVG
             </button>
