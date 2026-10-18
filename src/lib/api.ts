@@ -76,9 +76,11 @@ export function paramsToQuery(p: URLSearchParams): Query {
 
 export class ApiError extends Error {
   status: number
-  constructor(message: string, status: number) {
+  retryAfter: number | null // seconds, when the server says the source is paused
+  constructor(message: string, status: number, retryAfter: number | null = null) {
     super(message)
     this.status = status
+    this.retryAfter = retryAfter
   }
 }
 
@@ -90,7 +92,7 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   } catch {
     /* non-JSON */
   }
-  if (!res.ok) throw new ApiError(body?.error || `Request failed (${res.status})`, res.status)
+  if (!res.ok) throw new ApiError(body?.error || `Request failed (${res.status})`, res.status, Number(body?.retryAfter) || null)
   return body as T
 }
 

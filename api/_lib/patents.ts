@@ -2,6 +2,7 @@
 // Results are normalized into the shared Item shape so the whole UI (grid, viewer, boards,
 // downloads, halftone editor) works unchanged. Images live on the public patentimages CDN.
 import type { Item, ItemFile } from '../../shared/types.js'
+import { guardedSearch, type PatentResult } from './patentGuard.js'
 
 const IMG = 'https://patentimages.storage.googleapis.com/'
 
@@ -30,7 +31,7 @@ function dateOp(kind: 'before' | 'after', v: string, type: string): string | nul
 }
 
 export function buildInnerQuery(p: PatentQuery): string {
-  const parts = [p.q.trim()]
+  const parts = [p.q.trim().replace(/\s+/g, ' ')]
   const dt = p.dateType || 'publication'
   const a = p.after && dateOp('after', p.after, dt)
   const b = p.before && dateOp('before', p.before, dt)
@@ -118,8 +119,12 @@ export function normalizePatent(r: any): Item | null {
   }
 }
 
-export async function searchPatents(p: PatentQuery): Promise<{ items: Item[]; total: number }> {
+export function searchPatents(p: PatentQuery): Promise<PatentResult> {
   const inner = buildInnerQuery(p)
+  return guardedSearch(inner, () => fetchGoogle(inner))
+}
+
+async function fetchGoogle(inner: string): Promise<PatentResult> {
   const url = `https://patents.google.com/xhr/query?url=${encodeURIComponent(inner)}&exp=`
   const ctrl = new AbortController()
   const t = setTimeout(() => ctrl.abort(), 25000)
@@ -138,8 +143,14 @@ export async function searchPatents(p: PatentQuery): Promise<{ items: Item[]; to
     clearTimeout(t)
   }
   const text = await res.text()
-  if (!res.ok || /<title>Sorry/i.test(text) || /automated queries/i.test(text)) {
-    const err = new Error(res.status === 503 || /automated/i.test(text) ? 'Google Patents is rate-limiting searches right now. Try again in a minute.' : `Google Patents error (${res.status})`)
+  // 429/503 and Google's "Sorry… automated queries" page all mean this IP is being throttled
+  if (res.status === 429 || res.status === 503 || /<title>Sorry/i.test(text) || /automated queries/i.test(text)) {
+    const err = new Error('Google Patents is rate-limiting searches')
+    ;(err as any).blocked = true
+    throw err
+  }
+  if (!res.ok) {
+    const err = new Error(`Google Patents error (${res.status})`)
     ;(err as any).status = 502
     throw err
   }

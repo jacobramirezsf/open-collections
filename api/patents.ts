@@ -1,5 +1,6 @@
 import { handler, json, error, params, intParam } from './_lib/http.js'
 import { searchPatents } from './_lib/patents.js'
+import { PatentsPausedError } from './_lib/patentGuard.js'
 
 export default handler(async (req: Request) => {
   const p = params(req)
@@ -23,6 +24,9 @@ export default handler(async (req: Request) => {
     })
     return json({ items, total, took: Date.now() - t0 })
   } catch (e: any) {
+    if (e instanceof PatentsPausedError) {
+      return json({ error: e.message, retryAfter: e.retryAfter }, { status: 503, headers: { 'cache-control': 'no-store', 'retry-after': String(e.retryAfter) } })
+    }
     return error(e?.message || 'Patent search failed', e?.status || 502)
   }
 })

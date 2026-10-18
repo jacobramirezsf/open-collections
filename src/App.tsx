@@ -65,6 +65,9 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // set when the source is paused (Google Patents throttling): count down, then retry once
+  const [retry, setRetry] = useState<{ at: number; more: boolean } | null>(null)
+  const [, setTick] = useState(0)
   const [offset, setOffset] = useState(0)
   const [seed] = useState(() => Math.floor(Math.random() * 1e6))
   const [status, setStatus] = useState<Status | null>(null)
@@ -120,6 +123,7 @@ export default function App() {
       const ctrl = new AbortController()
       abortRef.current = ctrl
       const off = more ? offset + q.limit : 0
+      setRetry(null)
       if (more) setLoadingMore(true)
       else {
         setLoading(true)
@@ -142,6 +146,7 @@ export default function App() {
         if ((e as Error).name === 'AbortError') return
         const msg = e instanceof ApiError ? e.message : 'Could not reach the search service.'
         setError(msg)
+        if (e instanceof ApiError && e.retryAfter) setRetry({ at: Date.now() + e.retryAfter * 1000, more })
         if (!(e instanceof ApiError)) setHealth('down')
       } finally {
         if (!ctrl.signal.aborted) {
@@ -154,6 +159,7 @@ export default function App() {
   )
 
   useEffect(() => {
+    setRetry(null)
     if (view.kind !== 'search') return
     const p = queryToParams(query)
     p.delete('limit')
@@ -174,6 +180,18 @@ export default function App() {
     runSearch(query)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, view.kind, tool])
+
+  useEffect(() => {
+    if (!retry) return
+    const id = setInterval(() => {
+      if (Date.now() < retry.at) return setTick((t) => t + 1)
+      clearInterval(id)
+      setRetry(null)
+      if (viewRef.current.kind === 'search') runSearch(query, retry.more)
+    }, 1000)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retry])
 
   const viewRef = useRef(view)
   viewRef.current = view
@@ -388,6 +406,7 @@ export default function App() {
     if (view.kind === 'board') return board ? <>Board <b>{board.name}</b> · {board.items.length} items</> : 'Board not found'
     if (view.kind === 'similar') return similarProgress ? <>{similarProgress}</> : <>Visually similar to <b>{view.base.title}</b> among loaded results</>
     if (loading) return <><span className="spinner" /> Searching…</>
+    if (error && retry) return <span style={{ color: 'var(--danger)' }}>Google Patents is limiting searches. Retrying in {Math.max(1, Math.ceil((retry.at - Date.now()) / 1000))}s…</span>
     if (error) return <span style={{ color: 'var(--danger)' }}>{error}</span>
     if (tool === 'patents') {
       if (!query.q) return 'Search patent drawings'
