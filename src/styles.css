@@ -111,7 +111,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-2)
 .card .heart.on { opacity: 1; background: var(--fg); }
 .card.dim { opacity: 0.35; }
 .marquee { position: absolute; border: 1px solid var(--fg); background: rgba(20,20,20,0.08); pointer-events: none; z-index: 5; }
-.more { display: flex; justify-content: center; padding: 24px; gap: 10px; }
+.more { display: flex; justify-content: center; padding: 24px; gap: 10px; overflow-anchor: none; } /* else the browser keeps this row in view as results are added above it, jumping past them */
 /* room to scroll Load more clear of the fixed selection bar (which can wrap to two rows) */
 .more.under-bar { padding-bottom: 120px; }
 
