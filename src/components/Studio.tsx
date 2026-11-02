@@ -17,12 +17,12 @@ interface Props {
   onClose: () => void
 }
 
-const TILES: { mode: Exclude<StudioMode, 'hub'>; title: string; text: string }[] = [
+const TILES: { mode: Exclude<StudioMode, 'hub'>; title: string; text: string; wip?: boolean }[] = [
   { mode: 'editor', title: 'Editor', text: 'Cut out the background, erase and restore, crop, stack effects, print onto paper or fabric. Export at full resolution or save to your Edits board.' },
-  { mode: 'vectorize', title: 'Vectorize', text: 'Redraw a logo, drawing or flat artwork as clean, editable vector shapes. Watch it take shape, flatten to visible shapes, download the SVG or save it to a board.' },
+  { mode: 'vectorize', title: 'Vectorize', text: 'Redraw a logo, drawing or flat artwork as clean, editable vector shapes. Watch it take shape, flatten to visible shapes, download the SVG or save it to a board.', wip: true },
 ]
 
-function Tile({ title, text, hot, onFile, onHot }: { title: string; text: string; hot: boolean; onFile: (f: File) => void; onHot: () => void }) {
+function Tile({ title, text, wip, hot, onFile, onHot }: { title: string; text: string; wip?: boolean; hot: boolean; onFile: (f: File) => void; onHot: () => void }) {
   const [over, setOver] = useState(false)
   const ref = useRef<HTMLInputElement>(null)
   return (
@@ -58,7 +58,7 @@ function Tile({ title, text, hot, onFile, onHot }: { title: string; text: string
           e.target.value = ''
         }}
       />
-      <strong>{title}</strong>
+      <strong>{title}{wip && <span className="wip">Work in progress</span>}</strong>
       <span className="faint">{text}</span>
       <span className="studio-cta">Choose an image · drag · paste</span>
     </div>
@@ -166,7 +166,7 @@ export default function Studio({ mode, onMode, onClose }: Props) {
 
         <div className="studio-tiles">
           {TILES.map((t) => (
-            <Tile key={t.mode} title={t.title} text={t.text} hot={hot === t.mode} onHot={() => setHot(t.mode)} onFile={(f) => open(t.mode, f)} />
+            <Tile key={t.mode} title={t.title} text={t.text} wip={t.wip} hot={hot === t.mode} onHot={() => setHot(t.mode)} onFile={(f) => open(t.mode, f)} />
           ))}
         </div>
 

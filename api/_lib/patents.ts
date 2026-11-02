@@ -1,8 +1,10 @@
-// Google Patents search via the same /xhr/query JSON endpoint patents.google.com itself uses.
-// Results are normalized into the shared Item shape so the whole UI (grid, viewer, boards,
+// Patent search. SerpAPI's google_patents engine (SERPAPI_KEY) answers first: Google blocks Vercel's
+// IPs after a handful of searches, and SerpAPI does not get blocked. If SerpAPI fails (no key, out of
+// searches, outage) we fall back to the /xhr/query JSON endpoint patents.google.com itself uses,
+// behind the shared breaker. Both return the same record fields. Results are normalized into the shared Item shape so the whole UI (grid, viewer, boards,
 // downloads, halftone editor) works unchanged. Images live on the public patentimages CDN.
 import type { Item, ItemFile } from '../../shared/types.js'
-import { guardedSearch, type PatentResult } from './patentGuard.js'
+import { guardedSearch, googleGate, type PatentResult } from './patentGuard.js'
 
 const IMG = 'https://patentimages.storage.googleapis.com/'
 
@@ -75,13 +77,15 @@ const clean = (s: unknown, max = 300) => {
 
 const abs = (path: string | undefined | null) => (path ? (path.startsWith('http') ? path : IMG + path) : null)
 
-export function normalizePatent(r: any): Item | null {
-  const p = r?.patent
+// `p` is one patent record: Google's result.patent, or a SerpAPI organic_results entry (same fields)
+export function normalizePatent(p: any): Item | null {
   if (!p?.publication_number) return null
   const num = p.publication_number as string
   const figures: { thumbnail?: string; full?: string }[] = Array.isArray(p.figures) ? p.figures : []
-  const thumb = abs(p.thumbnail) || abs(figures[0]?.thumbnail)
-  const firstFull = abs(figures[0]?.full) || thumb
+  // Google's `thumbnail` fields are tiny (about 60-115px); the grid uses the first figure's
+  // full sheet (~1500px) so previews stay sharp, falling back to a thumbnail only when that is missing
+  const firstFull = abs(figures[0]?.full) || abs(p.thumbnail) || abs(figures[0]?.thumbnail)
+  const thumb = firstFull
   if (!thumb) return null
   const files: ItemFile[] = figures
     .filter((f) => f.full || f.thumbnail)
@@ -119,9 +123,62 @@ export function normalizePatent(r: any): Item | null {
   }
 }
 
+const serpKey = () => process.env.SERPAPI_KEY || process.env.SERPAPI_API_KEY || process.env.SERP_API_KEY || ''
+
 export function searchPatents(p: PatentQuery): Promise<PatentResult> {
   const inner = buildInnerQuery(p)
-  return guardedSearch(inner, () => fetchGoogle(inner))
+  return guardedSearch(inner, async () => {
+    if (serpKey()) {
+      try {
+        return await fetchSerp(p)
+      } catch (e) {
+        console.warn('SerpAPI patent search failed, trying Google directly:', (e as Error).message)
+      }
+    }
+    return googleGate(() => fetchGoogle(inner))
+  })
+}
+
+// SerpAPI takes the filters as their own parameters rather than inside q; page is 1-based.
+function serpParams(p: PatentQuery): URLSearchParams {
+  const sp = new URLSearchParams({ engine: 'google_patents', q: p.q.trim().replace(/\s+/g, ' '), num: String(p.num), page: String(p.page + 1), api_key: serpKey() })
+  const dt = p.dateType || 'publication'
+  const a = p.after && dateOp('after', p.after, dt)
+  const b = p.before && dateOp('before', p.before, dt)
+  if (a) sp.set('after', a.slice('after:'.length))
+  if (b) sp.set('before', b.slice('before:'.length))
+  const name = (s: string) => s.trim().replace(/"/g, '')
+  const wrap = (s: string) => (s.includes(',') ? `(${s})` : s)
+  if (p.inventor?.trim()) sp.set('inventor', wrap(name(p.inventor)))
+  if (p.assignee?.trim()) sp.set('assignee', wrap(name(p.assignee)))
+  if (p.country?.trim()) sp.set('country', p.country.trim().toUpperCase().replace(/[^A-Z,]/g, ''))
+  if (p.status) sp.set('status', p.status)
+  if (p.type) sp.set('type', p.type)
+  if (p.sort) sp.set('sort', p.sort)
+  return sp
+}
+
+async function fetchSerp(p: PatentQuery): Promise<PatentResult> {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), 25000)
+  let res: Response
+  try {
+    res = await fetch(`https://serpapi.com/search.json?${serpParams(p)}`, { signal: ctrl.signal, headers: { accept: 'application/json' } })
+  } finally {
+    clearTimeout(t)
+  }
+  let d: any = null
+  try {
+    d = await res.json()
+  } catch {
+    /* non-JSON */
+  }
+  // an empty search comes back as an error message rather than an empty list
+  if (typeof d?.error === 'string' && /hasn't returned any results/i.test(d.error)) return { items: [], total: 0, via: 'serpapi' }
+  if (!res.ok || d?.error || !d) throw new Error(`SerpAPI ${res.status}: ${d?.error || 'unexpected response'}`)
+  const raw: any[] = Array.isArray(d.organic_results) ? d.organic_results : []
+  const items = raw.map(normalizePatent).filter(Boolean) as Item[]
+  return { items, total: Number(d.search_information?.total_results) || items.length, via: 'serpapi' }
 }
 
 async function fetchGoogle(inner: string): Promise<PatentResult> {
@@ -158,6 +215,6 @@ async function fetchGoogle(inner: string): Promise<PatentResult> {
   const results = d?.results ?? {}
   const clusters = Array.isArray(results.cluster) ? results.cluster : []
   const raw: any[] = clusters.flatMap((c: any) => (Array.isArray(c?.result) ? c.result : []))
-  const items = raw.map(normalizePatent).filter(Boolean) as Item[]
-  return { items, total: Number(results.total_num_results) || items.length }
+  const items = raw.map((r) => normalizePatent(r?.patent)).filter(Boolean) as Item[]
+  return { items, total: Number(results.total_num_results) || items.length, via: 'google' }
 }

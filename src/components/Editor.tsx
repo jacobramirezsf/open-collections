@@ -740,7 +740,7 @@ export default function Editor({ item, onClose, standalone }: Props) {
             and only the cut edge is softer. Scroll or pinch to zoom.
           </p>
 
-          <h3 className="sec-vector-h">Vectorize</h3>
+          <h3 className="sec-vector-h">Vectorize<span className="wip">Work in progress</span></h3>
           <div className="sec-vector">
             {!vector ? (
               <>

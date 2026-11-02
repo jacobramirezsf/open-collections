@@ -385,12 +385,13 @@ export default function VectorizeTool({ onClose, initialFile }: { onClose: () =>
   return (
     <div className={'uploader vt' + (picked ? ' has-image' : '')}>
       <div className="uploader-inner">
-        <h1 className="intro-title" style={{ marginBottom: 6 }}>Vectorize</h1>
+        <h1 className="intro-title" style={{ marginBottom: 6 }}>Vectorize<span className="wip">Work in progress</span></h1>
         <p className="intro-lead" style={{ marginBottom: 22 }}>
           {picked
             ? 'Crop to the part you want or erase what should not be traced, then redraw it as clean, editable vector shapes. Best on logos, drawings, lettering and flat artwork.'
             : 'Turn a bitmap into an SVG. Bring a logo, drawing, sticker or any flat artwork and get back clean, editable vector shapes for Illustrator, Inkscape, Figma or a plotter. Nothing is saved.'}
         </p>
+        <p className="wip-note" role="note">We are rebuilding the vectorizer with a new tracing engine. Results may be rough or change while we work on it.</p>
 
         {!picked ? (
           <div

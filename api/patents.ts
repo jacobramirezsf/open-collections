@@ -8,7 +8,7 @@ export default handler(async (req: Request) => {
   if (!q.trim()) return json({ items: [], total: 0, took: 0 })
   const t0 = Date.now()
   try {
-    const { items, total } = await searchPatents({
+    const { items, total, via } = await searchPatents({
       q,
       num: intParam(p, 'num', 100, 10, 100),
       page: intParam(p, 'page', 0, 0, 50),
@@ -22,7 +22,7 @@ export default handler(async (req: Request) => {
       status: (['GRANT', 'APPLICATION'].includes(p.get('status') || '') ? p.get('status') : undefined) as any,
       type: (['PATENT', 'DESIGN'].includes(p.get('type') || '') ? p.get('type') : undefined) as any,
     })
-    return json({ items, total, took: Date.now() - t0 })
+    return json({ items, total, via: via || null, took: Date.now() - t0 })
   } catch (e: any) {
     if (e instanceof PatentsPausedError) {
       return json({ error: e.message, retryAfter: e.retryAfter }, { status: 503, headers: { 'cache-control': 'no-store', 'retry-after': String(e.retryAfter) } })

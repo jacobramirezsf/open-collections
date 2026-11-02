@@ -1,14 +1,16 @@
-// Google Patents blocks an IP after a handful of uncached searches, and every new hit while blocked
-// stretches the block out. This guard keeps traffic to Google as low as possible:
-//   1. results cached in memory and in Vercel Blob (shared by every function instance), 24h fresh;
+// Every upstream patent search costs something: a SerpAPI credit, or a strike against our IP at Google
+// Patents (which blocks after a handful of uncached searches and stretches the block on every hit).
+// This guard keeps upstream traffic as low as possible:
+//   1. results cached in memory and in Vercel Blob (shared by every function instance), 7 days fresh;
 //   2. identical searches already in flight share one upstream request;
-//   3. after a block, a shared circuit breaker stops all upstream calls for a backoff window
-//      (60s, doubling per repeated block, max 15 min), serving stale cached results when it can.
+//   3. googleGate(): after Google blocks us, a shared circuit breaker stops direct Google calls for a
+//      backoff window (60s, doubling per repeated block, max 15 min);
+//   4. when the upstream fails, stale cached results are served if there are any.
 // Without BLOB_READ_WRITE_TOKEN (local dev) everything stays in memory.
 import { createHash } from 'node:crypto'
 import type { Item } from '../../shared/types.js'
 
-export type PatentResult = { items: Item[]; total: number }
+export type PatentResult = { items: Item[]; total: number; via?: 'serpapi' | 'google' }
 
 export class PatentsPausedError extends Error {
   retryAfter: number
@@ -19,7 +21,7 @@ export class PatentsPausedError extends Error {
   }
 }
 
-const FRESH_MS = 24 * 3600_000
+const FRESH_MS = 7 * 24 * 3600_000 // patent results barely change, and each miss costs a credit
 const MEM_MAX = 300
 const BASE_PAUSE_S = 60
 const MAX_PAUSE_S = 15 * 60
@@ -35,8 +37,10 @@ let breaker: Breaker = { until: 0, strikes: 0, lastBlock: 0 }
 const BREAKER_PATH = 'patents/breaker.json'
 const cachePath = (key: string) => `patents/cache/${key}.json`
 
+const CACHE_VERSION = 'v2' // bump when the cached Item shape changes (v2: full-size figure previews)
+
 export function cacheKey(inner: string): string {
-  return createHash('sha1').update(inner).digest('hex')
+  return createHash('sha1').update(`${CACHE_VERSION}|${inner}`).digest('hex')
 }
 
 function memSet(key: string, e: Entry) {
@@ -91,8 +95,20 @@ export function isBlocked(e: unknown): boolean {
   return (e as any)?.blocked === true
 }
 
-// `inner` is the normalized Google query string (the cache key); `fetchUpstream` performs the
-// actual Google request and throws an error with `blocked: true` when Google refuses it.
+// Runs a direct Google Patents request unless the breaker is open. `fetchGoogle` throws an error with
+// `blocked: true` when Google refuses it; that trips the breaker and becomes a PatentsPausedError.
+export async function googleGate(fetchGoogle: () => Promise<PatentResult>): Promise<PatentResult> {
+  const wait = await pausedFor()
+  if (wait > 0) throw new PatentsPausedError(wait)
+  try {
+    return await fetchGoogle()
+  } catch (e) {
+    if (!isBlocked(e)) throw e
+    throw new PatentsPausedError(await tripBreaker())
+  }
+}
+
+// `inner` is the normalized Google query string (the cache key, whichever provider answers it).
 export async function guardedSearch(inner: string, fetchUpstream: () => Promise<PatentResult>): Promise<PatentResult> {
   const key = cacheKey(inner)
   const now = Date.now()
@@ -103,15 +119,10 @@ export async function guardedSearch(inner: string, fetchUpstream: () => Promise<
   if (pending) return pending
 
   const run = (async (): Promise<PatentResult> => {
-    // read the shared cache and the shared breaker together; both are needed on a miss
-    const [stored, wait] = await Promise.all([hot ? Promise.resolve(hot) : blobRead<Entry>(cachePath(key)), pausedFor()])
+    const stored = hot || (await blobRead<Entry>(cachePath(key)))
     if (stored && Date.now() - stored.at < FRESH_MS) {
       memSet(key, stored)
       return stored.data
-    }
-    if (wait > 0) {
-      if (stored) return stored.data // stale beats nothing while paused
-      throw new PatentsPausedError(wait)
     }
     try {
       const data = await fetchUpstream()
@@ -120,10 +131,8 @@ export async function guardedSearch(inner: string, fetchUpstream: () => Promise<
       await blobWrite(cachePath(key), entry)
       return data
     } catch (e) {
-      if (!isBlocked(e)) throw e
-      const secs = await tripBreaker()
-      if (stored) return stored.data
-      throw new PatentsPausedError(secs)
+      if (stored) return stored.data // stale beats nothing
+      throw e
     }
   })()
   inflight.set(key, run)
