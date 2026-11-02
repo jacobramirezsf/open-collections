@@ -6,17 +6,21 @@
 //               server-side at /api/vectorize, on a mask made in the worker
 //   color       flat colour regions that don't overlap (logos, stickers, poster art); VTracer, in
 //               the worker
+//   stitch      a running-stitch embroidery plan from the centerline skeleton (embroidery.ts), each
+//               connected shape sewn in one run; downloads as DST
 import type { PrepParams } from './bitmap'
 import type { CenterlineParams } from './centerline'
+import type { StitchParams, StitchPlan } from './embroidery'
 import { normalizeRoot, outlinesOnly, svgStats, type SvgStats } from './svgout'
 import type { WorkerJob, WorkerReply } from './worker'
 
-export type EngineId = 'centerline' | 'outline' | 'color'
+export type EngineId = 'centerline' | 'outline' | 'color' | 'stitch'
 
 export const ENGINES: { id: EngineId; label: string; blurb: string }[] = [
   { id: 'centerline', label: 'Centerline', blurb: 'One stroke down the middle of each line. For plotters, CNC engraving and running stitch.' },
   { id: 'outline', label: 'Outline', blurb: 'Smooth outlines of black-and-white art. For cutting, laser, and fill or satin stitches.' },
   { id: 'color', label: 'Color', blurb: 'Flat colour shapes that never overlap. For logos, stickers and poster art.' },
+  { id: 'stitch', label: 'Running stitch', blurb: 'An embroidery stitch plan from the centerlines: each connected shape sewn in one run, doubling back instead of trimming. Downloads as DST.' },
 ]
 
 export interface OutlineParams {
@@ -41,6 +45,7 @@ export interface VectorSettings {
   centerline: CenterlineParams
   outline: OutlineParams
   color: ColorParams
+  stitch: StitchParams
   widthMm: number // physical width written into the SVG; 0 = pixels
   outlinesOnly: boolean // outline/color: hairline outlines instead of fills
 }
@@ -52,6 +57,7 @@ export const DEFAULT_SETTINGS: VectorSettings = {
   centerline: { prune: 10, minLength: 6, joinAngle: 35, simplify: 0.8, smooth: 0.6 },
   outline: { corners: 1, curveFit: 0.2 },
   color: { colors: 8, speckle: 4, simplify: 1.5, corners: 60, mode: 'spline', layering: 'cutout', clustering: 'color-cluster' },
+  stitch: { widthMm: 100, stitchMm: 2.5, minStitchMm: 1, tolMm: 0.2, smoothMm: 0.5, linkMm: 1, minDetailMm: 2, route: 'continuous', ties: true },
   widthMm: 0,
   outlinesOnly: false,
 }
@@ -74,7 +80,7 @@ const prepKnob = (key: keyof PrepParams, label: string, hint: string, min: numbe
   get: (s) => Number(s.prep[key]),
   set: (s, v) => ({ ...s, prep: { ...s.prep, [key]: v } }),
 })
-const engineKnob = <E extends 'centerline' | 'outline' | 'color'>(e: E, key: keyof VectorSettings[E], label: string, hint: string, min: number, max: number, step: number, show?: (v: number) => string): Knob => ({
+const engineKnob = <E extends 'centerline' | 'outline' | 'color' | 'stitch'>(e: E, key: keyof VectorSettings[E], label: string, hint: string, min: number, max: number, step: number, show?: (v: number) => string): Knob => ({
   key: `${e}.${String(key)}`, label, hint, min, max, step, show,
   get: (s) => Number(s[e][key]),
   set: (s, v) => ({ ...s, [e]: { ...s[e], [key]: v } }),
@@ -106,6 +112,19 @@ export const COLOR_KNOBS: Knob[] = [
   engineKnob('color', 'simplify', 'Simplify', 'Fewer nodes: how far curves may stray from the traced edge.', 0, 4, 0.1, (v) => (v ? `${v.toFixed(1)}px` : 'off')),
   engineKnob('color', 'corners', 'Corner angle', 'Turns sharper than this stay corners; gentler ones become curves.', 0, 180, 1, (v) => `${v}°`),
 ]
+
+export const STITCH_KNOBS: Knob[] = [
+  engineKnob('stitch', 'widthMm', 'Design width', 'How wide the design sews out. Everything else is measured at this size.', 20, 300, 1, (v) => `${v} mm`),
+  engineKnob('stitch', 'stitchMm', 'Stitch length', 'Running stitch length on straight lines. Longer sews faster; 2–3 mm is typical.', 1.5, 5, 0.1, (v) => `${v.toFixed(1)} mm`),
+  engineKnob('stitch', 'tolMm', 'Curve accuracy', 'How far a stitch may cut across a curve before it is shortened.', 0.05, 0.6, 0.05, (v) => `${v.toFixed(2)} mm`),
+  engineKnob('stitch', 'minStitchMm', 'Shortest stitch', 'Stitches are never shorter than this, even on tight curves. Very short stitches pile up thread.', 0.5, 2, 0.1, (v) => `${v.toFixed(1)} mm`),
+  engineKnob('stitch', 'smoothMm', 'Smooth', 'Averages out scan wobble along each line before stitching.', 0, 1.5, 0.05, (v) => (v ? `${v.toFixed(2)} mm` : 'off')),
+  engineKnob('stitch', 'linkMm', 'Close gaps', 'Line ends closer than this are joined and sewn through, so broken lines become one run.', 0, 4, 0.1, (v) => (v ? `${v.toFixed(1)} mm` : 'off')),
+  engineKnob('stitch', 'minDetailMm', 'Smallest detail', 'Shapes with less line than this are left out.', 0, 15, 0.5, (v) => (v ? `${v.toFixed(1)} mm` : 'off')),
+]
+
+export const STITCHES_PER_MINUTE = 700
+export const SECONDS_PER_TRIM = 8
 
 // One worker for the page, created on first use.
 let worker: Worker | null = null
@@ -154,6 +173,7 @@ export interface VectorResult {
   w: number // traced size, px
   h: number
   stats: SvgStats & { travel?: number; length?: number; lineWidth?: number }
+  plan?: StitchPlan // stitch engine only
 }
 
 function colorOptions(c: ColorParams): Record<string, unknown> {
@@ -182,6 +202,12 @@ export async function runVector(source: HTMLCanvasElement, s: VectorSettings, si
     const { svg: out, travel, length, lineWidth } = r as { svg: string; travel: number; length: number; lineWidth: number }
     svg = out
     extra = { travel, length, lineWidth }
+  } else if (s.engine === 'stitch') {
+    const r = await ask({ kind: 'stitch', rgba, w, h, prep: s.prep, prune: s.centerline.prune, params: s.stitch }, [rgba.buffer])
+    fail(r)
+    const { svg, plan } = r as { svg: string; plan: StitchPlan }
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+    return { svg, engine: 'stitch', w, h, plan, stats: svgStats(svg) }
   } else if (s.engine === 'outline') {
     const r = await ask({ kind: 'mask', rgba, w, h, prep: s.prep }, [rgba.buffer])
     fail(r)
@@ -221,6 +247,7 @@ export function loadSettings(): VectorSettings {
       centerline: { ...d.centerline, ...saved.centerline },
       outline: { ...d.outline, ...saved.outline },
       color: { ...d.color, ...saved.color },
+      stitch: { ...d.stitch, ...saved.stitch },
     }
   } catch {
     return DEFAULT_SETTINGS

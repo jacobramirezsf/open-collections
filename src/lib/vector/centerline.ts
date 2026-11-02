@@ -18,7 +18,7 @@ export interface CenterlineParams {
   smooth: number // 0 = straight segments; up to 1 = round Catmull–Rom curves through the points
 }
 
-type Pt = [number, number]
+export type Pt = [number, number]
 
 export interface Stroke {
   pts: Pt[]
@@ -118,7 +118,7 @@ function thin(m: Mask): { sk: Uint8Array; W: number; H: number } {
   return { sk, W, H }
 }
 
-interface Edge {
+export interface Edge {
   a: number // node id at pts[0]
   b: number // node id at the last point (-1 for a closed loop)
   pts: Pt[]
@@ -235,7 +235,7 @@ function graph(sk: Uint8Array, W: number, H: number): { edges: Edge[]; nodePos: 
   return { edges, nodePos }
 }
 
-const len = (pts: Pt[]) => {
+export const len = (pts: Pt[]) => {
   let s = 0
   for (let i = 1; i < pts.length; i++) s += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])
   return s
@@ -270,7 +270,7 @@ function pruneSpurs(edges: Edge[], n: number, prune: number): void {
 }
 
 // Direction a line leaves node `at` along edge e, measured a few px out so pixel steps don't count.
-function leaving(e: Edge, at: 'a' | 'b'): Pt {
+export function leaving(e: Edge, at: 'a' | 'b'): Pt {
   const pts = at === 'a' ? e.pts : [...e.pts].reverse()
   const o = pts[0]
   let far = pts[pts.length - 1]
@@ -350,7 +350,7 @@ function chain(edges: Edge[], nNodes: number, joinAngle: number): { pts: Pt[]; c
   return [...out, ...rings]
 }
 
-function rdp(pts: Pt[], eps: number): Pt[] {
+export function rdp(pts: Pt[], eps: number): Pt[] {
   if (pts.length < 3 || eps <= 0) return pts
   const keep = new Uint8Array(pts.length)
   keep[0] = keep[pts.length - 1] = 1
@@ -422,11 +422,18 @@ function order(strokes: Stroke[]): { strokes: Stroke[]; travel: number } {
   return { strokes: out, travel }
 }
 
-export function traceCenterline(m: Mask, p: CenterlineParams): CenterlineResult {
+// The pruned skeleton graph: what the centerline strokes and the embroidery router are built from.
+// Edges with a < 0 are closed rings with no node on them.
+export function skeleton(m: Mask, prune: number): { edges: Edge[]; nodePos: Pt[]; dist: Float32Array } {
   const dist = distanceTransform(m)
   const { sk, W, H } = thin(m)
   const { edges, nodePos } = graph(sk, W, H)
-  pruneSpurs(edges, nodePos.length, p.prune)
+  pruneSpurs(edges, nodePos.length, prune)
+  return { edges: edges.filter((e) => e.alive), nodePos, dist }
+}
+
+export function traceCenterline(m: Mask, p: CenterlineParams): CenterlineResult {
+  const { edges, nodePos, dist } = skeleton(m, p.prune)
   const chains = chain(edges, nodePos.length, p.joinAngle)
   const widthAt = (pt: Pt) => {
     const x = Math.min(m.w - 1, Math.max(0, Math.round(pt[0])))

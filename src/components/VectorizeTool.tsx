@@ -19,6 +19,9 @@ import {
   ENGINES,
   OUTLINE_KNOBS,
   PREP_KNOBS,
+  SECONDS_PER_TRIM,
+  STITCHES_PER_MINUTE,
+  STITCH_KNOBS,
   loadSettings,
   runVector,
   saveSettings,
@@ -26,6 +29,7 @@ import {
   type VectorResult,
   type VectorSettings,
 } from '../lib/vector/engines'
+import { writeDst } from '../lib/vector/dst'
 
 const KEEP_EDGE = 3000 // the pristine upload is kept at up to this size so a crop keeps its detail
 const SIZES = [1000, 1600, 2400, 3000] // longest edge the image is traced at
@@ -57,6 +61,7 @@ const checker = {
 
 // The overlay view draws the vector in red over the faded original, thin enough to see the fit.
 function overlaySvg(r: VectorResult): string {
+  if (r.engine === 'stitch') return r.svg.replace(/stroke="#1f3a93"/, 'stroke="#e0002a"').replace(/stroke-width="0.35"/, 'stroke-width="0.2"')
   if (r.engine === 'centerline') {
     const sw = Math.max(1, (r.stats.lineWidth ?? 2) / 3).toFixed(2)
     return r.svg.replace(/stroke="#000"/, 'stroke="#e0002a"').replace(/stroke-width="[^"]*"/, `stroke-width="${sw}"`)
@@ -182,6 +187,12 @@ export default function VectorizeTool({ onClose, initialFile }: { onClose: () =>
     if (result) saveBlob(new Blob([result.svg], { type: 'image/svg+xml' }), fileName())
   }
 
+  const downloadDst = () => {
+    if (!result?.plan) return
+    const base = (picked?.name || 'design').replace(/[^a-zA-Z0-9._-]+/g, '-')
+    saveBlob(new Blob([writeDst(result.plan, base) as BlobPart], { type: 'application/octet-stream' }), `${base}.dst`)
+  }
+
   const copy = async () => {
     if (!result) return
     try {
@@ -281,7 +292,10 @@ export default function VectorizeTool({ onClose, initialFile }: { onClose: () =>
 
   const s = settings
   const engine = ENGINES.find((e) => e.id === s.engine)!
-  const engineKnobs = s.engine === 'centerline' ? CENTERLINE_KNOBS : s.engine === 'outline' ? OUTLINE_KNOBS : COLOR_KNOBS
+  const engineKnobs =
+    s.engine === 'centerline' ? CENTERLINE_KNOBS : s.engine === 'outline' ? OUTLINE_KNOBS : s.engine === 'stitch' ? [...STITCH_KNOBS, CENTERLINE_KNOBS[0]] : COLOR_KNOBS
+  const plan = result?.plan
+  const sewMinutes = plan ? plan.stats.stitches / STITCHES_PER_MINUTE + (plan.stats.trims * SECONDS_PER_TRIM) / 60 : 0
   // distances in the traced bitmap's pixels, shown in mm once a physical width is set
   const dist = (px: number) => {
     if (!result) return ''
@@ -370,7 +384,11 @@ export default function VectorizeTool({ onClose, initialFile }: { onClose: () =>
                     <button type="button" className={'btn link' + (view === 'overlay' ? ' on' : '')} onClick={() => setView('overlay')} title="The vector in red over the faded original, to check the fit">Overlay</button>
                   </span>
                   {running && <span className="spinner" style={{ margin: '0 6px' }} />}
-                  {result && (
+                  {plan ? (
+                    <>
+                      {' '}· {plan.stats.stitches.toLocaleString()} stitches · {plan.stats.trims} trims · ~{sewMinutes < 10 ? sewMinutes.toFixed(1) : Math.round(sewMinutes)} min · {Math.round(plan.box.w)}×{Math.round(plan.box.h)} mm
+                    </>
+                  ) : result && (
                     <>
                       {' '}· {result.stats.paths.toLocaleString()} paths · {result.stats.points.toLocaleString()} nodes · {Math.max(1, Math.round(result.stats.bytes / 1024))} KB
                       {result.stats.length != null && <> · stroke {dist(result.stats.length)} · jumps {dist(result.stats.travel ?? 0)}</>}
@@ -381,7 +399,10 @@ export default function VectorizeTool({ onClose, initialFile }: { onClose: () =>
             </div>
 
             <div className="vt-actions">
-              <button className="btn primary" onClick={download} disabled={!result}>Download SVG</button>
+              {s.engine === 'stitch' && (
+                <button className="btn primary" onClick={downloadDst} disabled={!plan} title="Tajima DST, read by nearly every embroidery machine and program">Download DST</button>
+              )}
+              <button className={'btn' + (s.engine === 'stitch' ? '' : ' primary')} onClick={download} disabled={!result}>Download SVG</button>
               <button className="btn" disabled={!result || saving} onClick={(e) => openSave(e.currentTarget)} title={user ? 'Keeps the SVG on a board on your account' : 'Keeps the SVG on a board in this browser; sign in to keep it on your account'}>
                 {saving ? 'Saving…' : 'Save to board'}
               </button>
@@ -419,6 +440,21 @@ export default function VectorizeTool({ onClose, initialFile }: { onClose: () =>
                 {engineKnobs.map((k) => (
                   <KnobRow key={k.key} k={k} s={s} onChange={change} />
                 ))}
+                {s.engine === 'stitch' && (
+                  <>
+                    <label className="vt-field" title="One run per shape doubles back along lines already sewn so each connected shape needs no trims. One run per line sews every line separately, with a trim between each.">
+                      Routing
+                      <select className="input" value={s.stitch.route} onChange={(e) => change({ ...s, stitch: { ...s.stitch, route: e.target.value as 'continuous' | 'strokes' } })}>
+                        <option value="continuous">One run per shape</option>
+                        <option value="strokes">One run per line</option>
+                      </select>
+                    </label>
+                    <label className="vt-check" title="A few tiny stitches back and forth at the start and end of every run, so the thread can't pull out after a trim">
+                      <input type="checkbox" checked={s.stitch.ties} onChange={(e) => change({ ...s, stitch: { ...s.stitch, ties: e.target.checked } })} />
+                      Lock stitches
+                    </label>
+                  </>
+                )}
                 {s.engine === 'color' && (
                   <>
                     <label className="vt-field">
@@ -456,6 +492,7 @@ export default function VectorizeTool({ onClose, initialFile }: { onClose: () =>
                     ))}
                   </select>
                 </label>
+                {s.engine !== 'stitch' && (
                 <label className="vt-field" title="Physical width written into the SVG, so a plotter, cutter or embroidery program opens it at this size. Empty = pixels.">
                   Width
                   <span className="vt-mm">
@@ -471,11 +508,17 @@ export default function VectorizeTool({ onClose, initialFile }: { onClose: () =>
                     mm
                   </span>
                 </label>
-                {s.engine !== 'centerline' && (
+                )}
+                {s.engine !== 'centerline' && s.engine !== 'stitch' && (
                   <label className="vt-check" title="Hairline outlines in each shape's colour instead of filled shapes. For pens, lasers and knives.">
                     <input type="checkbox" checked={s.outlinesOnly} onChange={(e) => change({ ...s, outlinesOnly: e.target.checked })} />
                     Outlines only, no fills
                   </label>
+                )}
+                {plan && (
+                  <p className="faint vt-note">
+                    {Math.round(plan.stats.threadMm / 10) / 100} m of thread, {Math.round(plan.stats.doubledMm / 10) / 100} m of it doubling back over lines already sewn; {plan.stats.runs} run{plan.stats.runs === 1 ? '' : 's'}. Time assumes {STITCHES_PER_MINUTE} stitches a minute and {SECONDS_PER_TRIM} s a trim.
+                  </p>
                 )}
                 {result && s.engine === 'centerline' && result.stats.lineWidth != null && (
                   <p className="faint vt-note">
