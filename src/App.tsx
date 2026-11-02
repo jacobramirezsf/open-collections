@@ -567,7 +567,7 @@ export default function App() {
         onMarquee={onMarquee}
       />
       {view.kind === 'search' && items.length > 0 && !loading && (
-        <div className="more">
+        <div className={'more' + (selected.size > 0 ? ' under-bar' : '')}>
           {items.length < total && (tool === 'patents' ? offset + query.limit < 1000 : offset + query.limit < 1500) ? (
             <button className="btn" disabled={loadingMore} onClick={() => runSearch(query, true)}>{loadingMore ? 'Loading…' : `Load ${query.limit} more`}</button>
           ) : (

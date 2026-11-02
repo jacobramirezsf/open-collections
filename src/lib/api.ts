@@ -135,7 +135,7 @@ export function fetchStatus(): Promise<Status> {
 
 // Items that live in our index are addressed by id; live items (patents) carry absolute URLs and
 // go through the allowlisted raw-url proxy instead.
-function isLive(item: Item): boolean {
+export function isLive(item: Item): boolean {
   return item.source === 'patents' || item.source === 'edits'
 }
 

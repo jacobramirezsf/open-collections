@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Item } from '../../shared/types'
-import { downloadUrl, proxyImageUrl } from '../lib/api'
-import { downloadItem } from '../lib/zip'
+import { downloadUrl, isLive, proxyImageUrl } from '../lib/api'
+import { downloadItem, saveBlob, zipItems } from '../lib/zip'
 import { ModelIcon } from './Grid'
 import { useBodyLock } from './Panels'
 import Editor from './Editor'
@@ -21,6 +21,14 @@ function shortLabel(f: { label?: string; filename?: string }): string {
   const l = (f.label || '').split(' · ')[0].trim()
   if (!l || l === f.filename) return ''
   return l.length > 28 ? l.slice(0, 27) + '…' : l
+}
+
+const IMAGE_FORMATS = ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'webp']
+
+// One figure sheet of a live item (a patent) as an item of its own, so the editor, the image proxy
+// and the ZIP builder, which all work from an item's image URLs, work on that sheet.
+function sheetItem(item: Item, url: string, n: number): Item {
+  return { ...item, id: `${item.id}-sheet${n}`, title: `${item.title} · sheet ${n}`, imageUrl: url, originalImageUrl: url, thumbnailUrl: url, files: [] }
 }
 
 function rightsClass(item: Item) {
@@ -58,12 +66,23 @@ export default function Viewer({ items, index, onClose, onNav, onSave, onSimilar
     }
   }, [item])
   const [editing, setEditing] = useState(false)
+  // the figure sheet on the stage, as an index into item.files; null = the item's main image
+  const [sheet, setSheet] = useState<number | null>(null)
+  const [zipping, setZipping] = useState<string | null>(null)
 
   useEffect(() => {
     setFailed(0)
     setBigLoaded(false)
+    setSheet(null)
     setSrc(item?.imageUrl || item?.thumbnailUrl || null)
   }, [item?.id])
+
+  const showSheet = (i: number | null) => {
+    setSheet(i)
+    setFailed(0)
+    setBigLoaded(false)
+    setSrc(i == null ? item.imageUrl || item.thumbnailUrl || null : item.files[i].url)
+  }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -77,6 +96,17 @@ export default function Viewer({ items, index, onClose, onNav, onSave, onSimilar
 
   if (!item) return null
   const onImgError = () => {
+    if (sheet != null) {
+      // a sheet: straight from the source failed, so try once through our proxy
+      if (failed === 0 && isLive(item)) {
+        setFailed(2)
+        setSrc(proxyImageUrl(sheetItem(item, item.files[sheet].url, 0), 'view'))
+      } else {
+        setFailed(3)
+        setSrc(null)
+      }
+      return
+    }
     if (failed === 0 && item.thumbnailUrl && item.thumbnailUrl !== src) {
       setFailed(1)
       setSrc(item.thumbnailUrl)
@@ -89,8 +119,28 @@ export default function Viewer({ items, index, onClose, onNav, onSave, onSimilar
     }
   }
   const is3d = item.contentType === '3d'
-  const imageFiles = item.files.filter((f) => ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'webp'].includes(f.format))
-  const modelFiles = item.files.filter((f) => !['jpg', 'jpeg', 'png', 'tif', 'tiff', 'webp'].includes(f.format))
+  const imageFiles = item.files.filter((f) => IMAGE_FORMATS.includes(f.format))
+  const modelFiles = item.files.filter((f) => !IMAGE_FORMATS.includes(f.format))
+  // every image file (a patent's figure sheets) is shown as a thumbnail that opens on the stage;
+  // the other files (PDFs, 3D formats) stay download buttons
+  const sheets = is3d ? [] : item.files.map((f, i) => ({ f, i })).filter(({ f }) => IMAGE_FORMATS.includes(f.format))
+  const otherFiles = item.files.map((f, i) => ({ f, i })).filter(({ f }) => is3d || !IMAGE_FORMATS.includes(f.format))
+  const sheetNo = sheet == null ? 0 : sheets.findIndex((s) => s.i === sheet) + 1
+  // what Edit opens: the sheet on the stage for live items (their sheets are plain URLs)
+  const editItem = sheet != null && isLive(item) ? sheetItem(item, item.files[sheet].url, sheetNo) : item
+  const zipSheets = async () => {
+    setZipping(`0/${sheets.length}`)
+    setDlError(null)
+    try {
+      const parts = sheets.map(({ f }, n) => sheetItem(item, f.url, n + 1))
+      const blob = await zipItems(parts, (p) => setZipping(`${p.done}/${p.total}`))
+      saveBlob(blob, `${item.id.split(':').pop()}-sheets.zip`)
+    } catch (e) {
+      setDlError((e as Error).message || 'Could not build the ZIP.')
+    } finally {
+      setZipping(null)
+    }
+  }
 
   return (
     <div className="viewer" role="dialog" aria-modal="true">
@@ -141,26 +191,49 @@ export default function Viewer({ items, index, onClose, onNav, onSave, onSimilar
                 onClick={() => {
                   setBusy(true)
                   setDlError(null)
-                  downloadItem(item, 'image')
+                  downloadItem(item, sheet ?? 'image')
                     .catch((e) => setDlError((e as Error).name === 'AbortError' ? 'Download timed out. The source host is slow, so try again or use the original record.' : (e as Error).message))
                     .finally(() => setBusy(false))
                 }}
               >
-                {busy ? 'Downloading…' : 'Download'}
+                {busy ? 'Downloading…' : sheet != null ? `Download sheet ${sheetNo}` : 'Download'}
               </button>
             )}
             <button className={'btn' + (isFavorite(item.id) ? ' active' : '')} onClick={() => onFavorite(item)} title="Favorite">
               {isFavorite(item.id) ? '♥ Favorited' : '♡ Favorite'}
             </button>
             <button className="btn" onClick={(e) => onSave(item, e.currentTarget)}>Save to board</button>
-            {!is3d && <button className="btn" onClick={() => setEditing(true)}>Edit</button>}
+            {!is3d && <button className="btn" onClick={() => setEditing(true)}>{sheet != null && isLive(item) ? `Edit sheet ${sheetNo}` : 'Edit'}</button>}
             <a className="btn" href={item.sourceUrl} target="_blank" rel="noopener noreferrer">Original record ↗</a>
             {!is3d && <button className="btn" onClick={() => onSimilar(item)}>Similar</button>}
           </div>
-          {(is3d || imageFiles.length > 1) && (
+          {sheets.length > 1 && (
+            <div className="figs">
+              <div className="figs-head">
+                <span className="label">{item.source === 'patents' ? 'Figure sheets' : 'Images'} · {sheets.length}</span>
+                {isLive(item) && (
+                  <button className="btn small" disabled={!!zipping} onClick={() => void zipSheets()} title="Every sheet in one ZIP">
+                    {zipping ? `Zipping ${zipping}…` : 'Download all (ZIP)'}
+                  </button>
+                )}
+              </div>
+              <div className="figs-grid">
+                {sheets.map(({ f, i }, n) => {
+                  const on = sheet === i || (sheet == null && f.url === item.imageUrl)
+                  return (
+                    <button key={i} type="button" className={'fig' + (on ? ' on' : '')} onClick={() => showSheet(f.url === item.imageUrl ? null : i)} title={f.label || `Sheet ${n + 1}`}>
+                      <img src={f.url} alt={`Sheet ${n + 1}`} loading="lazy" decoding="async" />
+                      <span>{n + 1}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+          {otherFiles.length > 0 && (is3d || imageFiles.length > 0) && (
             <div className="files">
               <span className="label">{is3d ? 'Download formats' : 'Other files'}</span>
-              {item.files.map((f, i) => (
+              {otherFiles.map(({ f, i }) => (
                 <button
                   key={i}
                   className={'btn small' + (fileError?.index === i ? ' danger' : '')}
@@ -190,7 +263,7 @@ export default function Viewer({ items, index, onClose, onNav, onSave, onSimilar
           </div>
         </div>
       </div>
-      {editing && <Editor item={item} onClose={() => setEditing(false)} />}
+      {editing && <Editor item={editItem} onClose={() => setEditing(false)} />}
     </div>
   )
 }

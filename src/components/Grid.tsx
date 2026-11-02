@@ -133,18 +133,34 @@ export default function Grid({ items, dense, selectMode, selected, favorites, on
   const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
   const drag = useRef<{ x0: number; y0: number; additive: boolean; moved: boolean } | null>(null)
 
-  // Distribute into columns by estimated height (shortest column first). Unknown ratios assume ~1.
-  const columns = useMemo(() => {
-    const heights = new Array(cols).fill(0)
-    const out: { item: Item; index: number }[][] = Array.from({ length: cols }, () => [])
+  // Distribute into columns, shortest column first (by estimated height). Each batch that arrives
+  // after the first ("Load more") is laid out as its own block below everything already shown, and
+  // cards keep the block and column they were given, so new results always continue downward
+  // instead of filling gaps in short columns partway up the page. A new search or a change in
+  // column count lays everything out afresh as one block.
+  const placed = useRef<{ cols: number; first: string | null; blocks: number; at: Map<string, [number, number]> }>({ cols: 0, first: null, blocks: 0, at: new Map() })
+  const blocks = useMemo(() => {
+    const first = items[0]?.id ?? null
+    if (placed.current.cols !== cols || placed.current.first !== first) placed.current = { cols, first, blocks: 0, at: new Map() }
+    const p = placed.current
+    const fresh = items.filter((item) => !p.at.has(item.id))
+    if (fresh.length) {
+      const block = p.blocks++
+      const heights = new Array(cols).fill(0)
+      for (const item of fresh) {
+        const r = item.width && item.height ? item.width / item.height : 1
+        let c = 0
+        for (let i = 1; i < cols; i++) if (heights[i] < heights[c]) c = i
+        p.at.set(item.id, [block, c])
+        heights[c] += 1 / Math.max(0.3, Math.min(3, r)) + 0.05
+      }
+    }
+    const out: { item: Item; index: number }[][][] = Array.from({ length: p.blocks }, () => Array.from({ length: cols }, () => []))
     items.forEach((item, index) => {
-      const r = item.width && item.height ? item.width / item.height : 1
-      let c = 0
-      for (let i = 1; i < cols; i++) if (heights[i] < heights[c]) c = i
-      out[c].push({ item, index })
-      heights[c] += 1 / Math.max(0.3, Math.min(3, r)) + 0.05
+      const [block, c] = p.at.get(item.id)!
+      out[block][c].push({ item, index })
     })
-    return out
+    return out.filter((cols) => cols.some((c) => c.length))
   }, [items, cols])
 
   // Drag-to-select marquee (desktop, select mode, pointer starts on grid background or a card).
@@ -204,15 +220,17 @@ export default function Grid({ items, dense, selectMode, selected, favorites, on
 
   return (
     <div ref={ref} className={'gridwrap' + (dense ? ' dense' : '') + (selectMode ? ' selecting' : '')} onClickCapture={(e) => suppressClick.current && e.stopPropagation()}>
-      <div className="masonry">
-        {columns.map((col, ci) => (
-          <div className="column" key={ci}>
-            {col.map(({ item, index }) => (
-              <Card key={item.id} item={item} index={index} selected={selected.has(item.id)} fav={favorites.has(item.id)} selectMode={selectMode} onOpen={onOpen} onToggle={onToggle} onBroken={onBroken} onFavorite={onFavorite} />
-            ))}
-          </div>
-        ))}
-      </div>
+      {blocks.map((columns, bi) => (
+        <div className="masonry" key={bi}>
+          {columns.map((col, ci) => (
+            <div className="column" key={ci}>
+              {col.map(({ item, index }) => (
+                <Card key={item.id} item={item} index={index} selected={selected.has(item.id)} fav={favorites.has(item.id)} selectMode={selectMode} onOpen={onOpen} onToggle={onToggle} onBroken={onBroken} onFavorite={onFavorite} />
+              ))}
+            </div>
+          ))}
+        </div>
+      ))}
       {marquee && (
         <div
           className="marquee"
