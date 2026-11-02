@@ -531,11 +531,32 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-2)
 .vt-pane.vt-live img { transition: opacity 0.15s; }
 .vt-wait { flex: 1; min-height: 220px; display: flex; align-items: center; justify-content: center; color: var(--fg-3); }
 .vt-pane figcaption .spinner { vertical-align: -2px; }
-.vt-model { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--fg-2); }
-.vt-model select { width: auto; }
-.vt-model input[type="checkbox"] { accent-color: var(--fg); margin: 0; }
+.vt-engines { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 12px; }
+.vt-engine-blurb { font-size: 13px; margin-left: 6px; flex: 1 1 260px; }
+.vt-stack { position: relative; }
+.vt-stack .vt-under { position: absolute; inset: 0; opacity: 0.3; }
+.vt-pane.busy .vt-stack img:last-child { opacity: 0.55; }
+.vt-views .btn.link { padding: 0; height: auto; margin-right: 8px; font-size: 12px; color: var(--fg-3); }
+.vt-views .btn.link.on { color: var(--fg); font-weight: 600; text-decoration: none; }
+.vt-sep { width: 1px; align-self: stretch; background: var(--line); margin: 0 4px; }
+.vt-settings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 28px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.vt-settings h3 { font-size: 11px; font-family: var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-3); font-weight: 500; margin: 0 0 10px; }
+.vt-knob { display: block; margin-bottom: 10px; }
+.vt-knob-label { display: flex; justify-content: space-between; font-size: 13px; color: var(--fg-2); }
+.vt-knob-label b { font-weight: 500; color: var(--fg); font-variant-numeric: tabular-nums; }
+.vt-knob input[type="range"] { width: 100%; accent-color: var(--fg); margin: 4px 0 0; }
+.vt-check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--fg-2); margin-bottom: 8px; }
+.vt-check input { accent-color: var(--fg); margin: 0; }
+.vt-field { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--fg-2); margin-bottom: 8px; }
+.vt-field select { width: auto; }
+.vt-mm { display: inline-flex; align-items: center; gap: 6px; }
+.vt-mm input { width: 90px; }
+.vt-note { font-size: 12px; margin: 6px 0 0; }
+.vt-settings .btn.link { padding: 0; height: auto; font-size: 12px; }
 @media (max-width: 800px) {
   .vt-compare.two { grid-template-columns: 1fr; }
+  .vt-settings { grid-template-columns: 1fr; }
+  .vt-sep { display: none; }
   .vt-pane img { max-height: 44vh; }
 }
 

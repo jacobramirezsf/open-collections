@@ -20,8 +20,8 @@
   "dependencies": {
     "@imgly/background-removal": "^1.7.0",
     "@vercel/blob": "^1.1.1",
+    "esm-potrace-wasm": "^0.5.1",
     "fflate": "^0.8.2",
-    "paper": "^0.12.18",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

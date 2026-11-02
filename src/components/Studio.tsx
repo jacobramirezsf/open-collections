@@ -19,7 +19,7 @@ interface Props {
 
 const TILES: { mode: Exclude<StudioMode, 'hub'>; title: string; text: string; wip?: boolean }[] = [
   { mode: 'editor', title: 'Editor', text: 'Cut out the background, erase and restore, crop, stack effects, print onto paper or fabric. Export at full resolution or save to your Edits board.' },
-  { mode: 'vectorize', title: 'Vectorize', text: 'Redraw a logo, drawing or flat artwork as clean, editable vector shapes. Watch it take shape, flatten to visible shapes, download the SVG or save it to a board.', wip: true },
+  { mode: 'vectorize', title: 'Vectorize', text: 'Turn line art, logos and flat artwork into SVG: single-stroke centerlines for plotters, CNC and embroidery, smooth outlines, or flat colour shapes. Tune it live, download it or save it to a board.', wip: true },
 ]
 
 function Tile({ title, text, wip, hot, onFile, onHot }: { title: string; text: string; wip?: boolean; hot: boolean; onFile: (f: File) => void; onHot: () => void }) {

@@ -20,6 +20,7 @@ import MaskTool from './MaskTool'
 import CropTool from './CropTool'
 import { backgroundImageUrl, isContainedBackground, isSheetValue } from './BackgroundPicker'
 import { useBodyLock } from './Panels'
+import { ENGINES, loadSettings, runVector, type EngineId } from '../lib/vector/engines'
 
 interface Props {
   item: Item
@@ -102,7 +103,7 @@ export default function Editor({ item, onClose, standalone }: Props) {
   const [busy, setBusy] = useState<string | null>('Loading image…')
   const [error, setError] = useState<string | null>(null)
   const [exportScale, setExportScale] = useState(1)
-  const [vector, setVector] = useState<{ svg: string; url: string; sandbox: boolean } | null>(null)
+  const [vector, setVector] = useState<{ svg: string; url: string; engine: EngineId } | null>(null)
   const [user, setUser] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [zoom, setZoom] = useState(1)
@@ -434,26 +435,25 @@ export default function Editor({ item, onClose, standalone }: Props) {
     setTex((t) => ({ ...t, paper: TEXTURE_DEFAULTS.paper }))
   }, [originalFull, adopt])
 
+  // Runs the engine and settings last used on the Vectorize page (lib/vector), on the working image.
   const vectorize = useCallback(async () => {
     if (!full) return
-    setBusy('Vectorizing… (can take ~30s)')
+    const settings = loadSettings()
+    setBusy(`Vectorizing (${ENGINES.find((e) => e.id === settings.engine)?.label.toLowerCase()})…`)
     setError(null)
     try {
-      const body = cutoutApplied || standalone ? JSON.stringify({ image: toCanvas(full, 1024).toDataURL('image/png') }) : JSON.stringify({ id: item.id })
-      const res = await fetch('/api/vectorize', { method: 'POST', headers: { 'content-type': 'application/json' }, body })
-      const payload = await res.json().catch(() => null)
-      if (!res.ok) throw new Error(payload?.error || `Vectorization failed (${res.status})`)
-      const url = URL.createObjectURL(new Blob([payload.svg], { type: 'image/svg+xml' }))
+      const { svg } = await runVector(full, settings)
+      const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }))
       setVector((old) => {
         if (old) URL.revokeObjectURL(old.url)
-        return { svg: payload.svg, url, sandbox: !!payload.sandbox }
+        return { svg, url, engine: settings.engine }
       })
     } catch (e) {
       setError((e as Error).message)
     } finally {
       setBusy(null)
     }
-  }, [full, cutoutApplied, item.id, standalone])
+  }, [full])
 
   const stackName = stack.length ? stack.join('-') : vector ? 'vector' : cutoutApplied ? 'cutout' : 'edit'
   const baseName = useMemo(
@@ -745,7 +745,7 @@ export default function Editor({ item, onClose, standalone }: Props) {
             {!vector ? (
               <>
                 <button className="btn" onClick={vectorize} disabled={!full || !!busy}>Vectorize</button>
-                <p className="faint hide-mobile" style={{ fontSize: 12, margin: '6px 0 0' }}>Redraws the {cutoutApplied ? 'cutout' : 'image'} as clean, editable vector shapes (rate-limited).</p>
+                <p className="faint hide-mobile" style={{ fontSize: 12, margin: '6px 0 0' }}>Redraws the {cutoutApplied ? 'cutout' : 'image'} as vector paths with the engine and settings you last used in Studio → Vectorize, where you can tune them.</p>
               </>
             ) : (
               <>
@@ -753,7 +753,7 @@ export default function Editor({ item, onClose, standalone }: Props) {
                   <button className="btn primary" onClick={() => saveBlob(new Blob([vector.svg], { type: 'image/svg+xml' }), `${baseName}-vector.svg`)}>Download SVG</button>
                   <button className="btn" onClick={() => { URL.revokeObjectURL(vector.url); setVector(null) }}>Back to bitmap</button>
                 </div>
-                <p className="faint hide-mobile" style={{ fontSize: 12, margin: '6px 0 0' }}>{vector.sandbox ? 'Preview-mode result. Full-quality vectorization is not enabled yet.' : 'Editable vector shapes that scale to any size.'}</p>
+                <p className="faint hide-mobile" style={{ fontSize: 12, margin: '6px 0 0' }}>{ENGINES.find((e) => e.id === vector.engine)?.blurb}</p>
               </>
             )}
           </div>

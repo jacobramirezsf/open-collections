@@ -1,113 +1,66 @@
-// POST /api/vectorize { id } or { image: dataURL } [, model, stream] → { svg, model, sandbox } via
-// QuiverAI's image-to-SVG API (https://docs.quiver.ai). With stream: true the upstream server-sent
-// events pass straight through (text/event-stream: `event: draft|content|error`, `data: {svg,…}`,
-// then `data: [DONE]`) so the client can draw the vector as it is being made. The key stays
-// server-side (QUIVERAI_API_KEY); generations spend paid credits, so a small per-IP daily cap
-// applies (same pattern as removebg).
-import { handler, error, json, params } from './_lib/http.js'
-import { getItemsAcrossShards } from './_lib/router.js'
+// POST /api/vectorize { w, h, bits, corners?, curveFit? } → { svg }
+// The vectorizer's Outline engine: Potrace (esm-potrace-wasm, GPL-2.0) traces a black-and-white
+// mask into smooth filled outlines. The browser does all the image prep (threshold, blur, bridge,
+// despeckle) and sends the result as 1 bit per pixel, row-major, most significant bit first,
+// base64; this function only runs Potrace. It runs here rather than in the browser to keep the
+// GPL code out of the page we distribute.
+import { createRequire } from 'node:module'
+import { handler, error, json } from './_lib/http.js'
 
-export const config = { maxDuration: 120 }
+export const config = { maxDuration: 30 }
 
-const DAILY_CAP = Number(process.env.QUIVER_DAILY_CAP || 20)
-const DEFAULT_MODEL = process.env.QUIVER_MODEL || 'arrow-1.1'
-// models the vectorize endpoint accepts (docs.quiver.ai/developers/models); the client may pick one
-const MODELS = new Set(['arrow-1.1', 'arrow-2', 'arrow-2-telos'])
-const memCounts = new Map<string, number>()
+const MAX_PIXELS = 4096 * 4096
 
-function day(): string {
-  return new Date().toISOString().slice(0, 10)
-}
+type Potrace = typeof import('esm-potrace-wasm')
+let potraceReady: Promise<Potrace> | null = null
 
-async function quota(ip: string): Promise<{ ok: boolean; used: number }> {
-  const keyName = `vectorize/${day()}/${ip.replace(/[^a-zA-Z0-9.:_-]/g, '')}.json`
-  const token = process.env.BLOB_READ_WRITE_TOKEN
-  if (!token) {
-    const used = (memCounts.get(day() + ip) || 0) + 1
-    memCounts.set(day() + ip, used)
-    return { ok: used <= DAILY_CAP, used }
+// The emscripten build detects Node and then reaches for CommonJS `require` and `__dirname`,
+// which an ES module does not have; give it both before it loads.
+function loadPotrace(): Promise<Potrace> {
+  if (!potraceReady) {
+    const g = globalThis as any
+    g.require ??= createRequire(import.meta.url)
+    g.__dirname ??= '/'
+    potraceReady = import('esm-potrace-wasm').then(async (m) => {
+      await m.init()
+      return m
+    })
   }
-  let used = 0
-  try {
-    const { head } = await import('@vercel/blob')
-    const h = await head(keyName, { token })
-    const res = await fetch(h.url + '?t=' + Date.now())
-    if (res.ok) used = Number(((await res.json()) as any)?.used) || 0
-  } catch {
-    /* first request today */
-  }
-  used++
-  if (used > DAILY_CAP) return { ok: false, used }
-  const { put } = await import('@vercel/blob')
-  await put(keyName, JSON.stringify({ used }), { access: 'public', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json', cacheControlMaxAge: 0, token }).catch(() => {})
-  return { ok: true, used }
+  return potraceReady
 }
 
 export default handler(async (req: Request) => {
-  void params
   if (req.method !== 'POST') return error('POST only', 405)
-  const key = process.env.QUIVERAI_API_KEY
-  if (!key) return error('Vectorization is not configured.', 501)
   const text = await req.text()
-  if (text.length > 9_000_000) return error('Image too large to vectorize.', 413)
+  if (text.length > 4_400_000) return error('Image too large to trace.', 413)
   let body: any
   try {
     body = JSON.parse(text)
   } catch {
     return error('invalid body')
   }
+  const w = Math.trunc(Number(body?.w))
+  const h = Math.trunc(Number(body?.h))
+  if (!(w > 0 && h > 0) || w * h > MAX_PIXELS || typeof body?.bits !== 'string') return error('w, h and bits required')
+  const bits = Buffer.from(body.bits, 'base64')
+  if (bits.length !== Math.ceil((w * h) / 8)) return error('bits do not match w×h')
 
-  let image: { url: string } | { base64: string }
-  if (typeof body?.image === 'string' && body.image.startsWith('data:image/')) {
-    image = { base64: body.image.replace(/^data:image\/[a-z+]+;base64,/, '') }
-  } else if (body?.id) {
-    const [item] = await getItemsAcrossShards(req, [String(body.id)])
-    if (!item) return error('not found', 404)
-    const url = item.imageUrl || item.thumbnailUrl
-    if (!url) return error('no image', 404)
-    image = { url }
-  } else {
-    return error('id or image required')
+  const rgba = new Uint8ClampedArray(w * h * 4).fill(255)
+  for (let i = 0; i < w * h; i++) {
+    if ((bits[i >> 3] >> (7 - (i & 7))) & 1) rgba[i * 4] = rgba[i * 4 + 1] = rgba[i * 4 + 2] = 0
   }
-
-  const model = typeof body?.model === 'string' && MODELS.has(body.model) ? body.model : DEFAULT_MODEL
-  const stream = body?.stream === true
-
-  const ip = (req.headers.get('x-forwarded-for') || 'local').split(',')[0].trim()
-  const q = await quota(ip)
-  if (!q.ok) return error(`Daily vectorization limit reached (${DAILY_CAP}/day). Try again tomorrow.`, 429)
-
-  const res = await fetch('https://api.quiver.ai/v1/svgs/vectorizations', {
-    method: 'POST',
-    headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ model, image, target_size: 1024, stream }),
+  const clamp = (v: unknown, lo: number, hi: number, def: number) => (Number.isFinite(Number(v)) ? Math.min(hi, Math.max(lo, Number(v))) : def)
+  const { potrace } = await loadPotrace()
+  const svg = await potrace({ data: rgba, width: w, height: h } as unknown as Parameters<Potrace['potrace']>[0], {
+    turdsize: 0, // specks were already removed by the browser's despeckle
+    turnpolicy: 4,
+    alphamax: clamp(body.corners, 0, 1.3334, 1),
+    opticurve: 1,
+    opttolerance: clamp(body.curveFit, 0, 1, 0.2),
+    pathonly: false,
+    extractcolors: false,
+    posterizelevel: 2,
+    posterizationalgorithm: 0,
   })
-  if (stream && res.ok && res.body && (res.headers.get('content-type') || '').includes('text/event-stream')) {
-    return new Response(res.body, {
-      status: 200,
-      headers: {
-        'content-type': 'text/event-stream; charset=utf-8',
-        'cache-control': 'no-store, no-transform',
-        'x-accel-buffering': 'no',
-        'x-quiver-model': model,
-        'x-quiver-environment': res.headers.get('x-quiver-environment') || 'live',
-      },
-    })
-  }
-  let payload: any = null
-  try {
-    payload = await res.json()
-  } catch {
-    /* non-JSON error */
-  }
-  if (!res.ok) {
-    const msg = payload?.error?.message || payload?.message || `Vectorization error (${res.status})`
-    return error(res.status === 402 ? 'Vectorization is temporarily unavailable.' : msg, 502)
-  }
-  const svg = payload?.data?.[0]?.svg
-  if (!svg || typeof svg !== 'string') return error('Vectorization failed.', 502)
-  return json(
-    { svg, model, sandbox: svg.includes('data-quiver-sandbox') || res.headers.get('x-quiver-environment') === 'test', credits: payload?.credits ?? null },
-    { headers: { 'cache-control': 'no-store' } },
-  )
+  return json({ svg }, { headers: { 'cache-control': 'no-store' } })
 })

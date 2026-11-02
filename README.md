@@ -84,7 +84,7 @@ Environment variables:
 | --- | --- | --- |
 | `INDEX_URL` | Vercel (all envs) | URL of the built `index.sqlite` — a GitHub release asset (from `npm run index:upload`); downloaded into `/tmp` on cold start |
 | `REMOVE_BG_KEY` | Vercel (production) | Optional; enables “Remove background” in the editor (remove.bg API, paid credits, per-IP daily cap) |
-| `QUIVERAI_API_KEY` | Vercel (production) | Optional; enables “Vectorize (AI)” in the editor (QuiverAI image→SVG, paid credits, per-IP daily cap) |
+| `SERPAPI_KEY` | Vercel (production + preview) | Patent search via SerpAPI's `google_patents` engine (also read as `SERPAPI_API_KEY` / `SERP_API_KEY`); without it, or when it fails, searches go straight to Google Patents, which throttles Vercel's IPs quickly |
 | `BLOB_READ_WRITE_TOKEN` | auto (connected store) | Used only to persist remove.bg quota counters |
 
 Refreshing data = run the ingest scripts locally, `npm run index:build`, `npm run index:upload`,
@@ -184,9 +184,8 @@ with misregistration), and three more **print processes** (`src/lib/printfx.ts`:
 flat opaque spot inks printed lightest first, mesh weave, squeegee pull, dot gain, misregistration;
 Linocut — solid block, cut-away paper, mid-tones as hand-gouged parallel cuts that widen with tone,
 with wobble and chatter; Engraving — banknote-style lines that swell with darkness and bend around
-the forms, crossed in the darks), and **AI vectorization** (QuiverAI image→SVG,
-`QUIVERAI_API_KEY` from platform.quiver.ai/api-keys, per-IP daily cap, `QUIVER_MODEL` sets the default
-model, arrow-1.1 — works on the original or on the background-removed cutout). The full-resolution image is loaded
+the forms, crossed in the darks), and **Vectorize** (the engine and settings last used on the
+vectorizer page, below — works on the original or on the background-removed cutout). The full-resolution image is loaded
 through the same-origin proxy, optionally sent through remove.bg (server-side, `/api/removebg`,
 needs `REMOVE_BG_KEY`), then screened client-side (rotated dot/line/square grid, adjustable cell,
 angle, gain, ink/paper colours, transparency-aware). The preview runs at ≤1800px; exports re-render
@@ -200,15 +199,20 @@ save to the same boards as the rest of the site — in this browser (IndexedDB) 
 then on the account via `/api/upload-edit` (PNG/JPEG/WebP, and SVG for vectors). The older
 `#/editor` and `#/vectorize` links land inside it. **`#/studio/editor`** opens the whole editor on
 an uploaded file (Save to Edits works for uploads too), and **`#/studio/vectorize`** is just the
-image→SVG step — crop or erase first (the editor's own tools), pick a
-QuiverAI model (Arrow 1.1, Arrow 2 or Arrow 2 Telos; the choice is remembered), watch the vector
-being drawn (the request streams, `stream: true`, and each draft is closed off and shown as it
-arrives), compare original and vector side by side, download or copy the SVG. **Only visible
-shapes** (on by default) flattens the result: Arrow 2 / Telos draw every object as a complete
-shape and stack them, so a ski keeps running under the leg that covers it; the flattening walks
-the paint order top-down and subtracts what is painted above from each shape (`src/lib/flattenSvg.ts`,
-paper.js boolean ops, loaded on first use), giving non-overlapping regions that render the same
-and open flat in Illustrator or on a plotter. Opaque fills knock out what is below; translucent
-fills, gradients with alpha, stroke-only lines and clipping groups are left as drawn. Both pages
-send the image to `/api/vectorize` as a ≤1024px PNG; the endpoint allowlists the model ids, falls
-back to `QUIVER_MODEL`, and passes QuiverAI's server-sent events straight through when streaming.
+image→SVG step, built for plotter, CNC and embroidery output first (work in progress). Crop or
+erase first (the editor's own tools), pick an engine, and tune it while the vector redraws
+(`src/lib/vector/`; settings are remembered and shared with the editor's Vectorize button):
+
+- **Centerline** — our own skeleton tracer (`centerline.ts`): ink mask → distance transform (line
+  width) → Zhang–Suen thinning with staircase cleanup → skeleton graph → spur pruning → strokes
+  carried straight through junctions → RDP simplify → optional Catmull–Rom smoothing → ordered to
+  cut pen-up travel. Outputs single open strokes, each with its traced width as `data-width`.
+- **Outline** — Potrace (`esm-potrace-wasm`, GPL-2.0) in `/api/vectorize`, kept server-side so no
+  GPL code ships in the page. The browser sends the prepared mask, 1 bit per pixel.
+- **Color** — VTracer 1.0 (`vtracer/`, MIT; the npm package's wasm with a browser loader), with
+  non-overlapping "cut out" regions, colour count, despeckle, simplify and corner angle.
+
+Centerline and Outline share the ink prep (`bitmap.ts`: auto/fixed/adaptive threshold, soften,
+bridge gaps, despeckle). Centerline and Color run in a Web Worker (`worker.ts`). Every result gets
+a clean root with a viewBox, an optional physical width in mm, and optionally outlines instead of
+fills (`svgout.ts`).
